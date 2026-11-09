@@ -26,11 +26,23 @@ const sign = exp => crypto.createHmac('sha256', signingKey()).update('v1.' + exp
 
 export function makeCookie() {
   const exp = Date.now() + DAYS * 864e5;
-  return `${COOKIE}=${exp}.${sign(exp)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${DAYS * 86400}`;
+  return `${COOKIE}=${exp}.${sign(exp)}; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=${DAYS * 86400}`;
 }
-export const clearCookie = `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
+export const clearCookie = `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Partitioned; Max-Age=0`;
+
+// 다른 화면(iframe) 안에서도 쓸 수 있도록 쿠키를 SameSite=None으로 두었으므로,
+// 저장·삭제 요청은 이 사이트에서 보낸 것인지(Origin) 확인해 다른 사이트의 위조 요청을 막는다.
+export function sameOrigin(req) {
+  const m = req.method || 'GET';
+  if (m === 'GET' || m === 'HEAD') return true;
+  const origin = req.headers.get('origin');
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  if (!origin || !host) return false;
+  try { return new URL(origin).host === host; } catch { return false; }
+}
 
 export function authed(req) {
+  if (!sameOrigin(req)) return false;
   const m = (req.headers.get('cookie') || '').match(/(?:^|;\s*)cs_sess=(\d+)\.([A-Za-z0-9_-]+)/);
   if (!m) return false;
   const exp = Number(m[1]);
