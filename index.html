@@ -105,7 +105,12 @@ details.vm>summary{cursor:pointer;font-weight:700;color:var(--navy);padding:2px 
 </head>
 <body>
 <div class="wrap">
-  <h1>선용금 정산 검토</h1>
+  <div class="row" style="align-items:baseline">
+    <h1 class="grow">선용금 정산 검토</h1>
+    <span class="note" id="syncInfo"></span>
+    <span class="note" id="meInfo"></span>
+    <button id="logoutBtn" style="min-height:30px;padding:3px 10px">로그아웃</button>
+  </div>
   <p class="sub">선박 정산서 데이터(CSV)를 올리면 합계·잔액·증빙·수당 규정·전월 일자·주류를 다시 계산해 불일치 후보를 표시합니다. 승인·반려는 사람이 직접 판단합니다.</p>
 
   <div class="card">
@@ -116,7 +121,7 @@ details.vm>summary{cursor:pointer;font-weight:700;color:var(--navy);padding:2px 
       <span class="grow"></span>
       <label>기준 1인 1일 단가($) <input type="number" id="unit" step="0.01" min="0" style="width:90px" placeholder="미입력"></label>
     </div>
-    <div class="hint">불러온 CSV(여러 달 파일 모두), 선택한 선박, 동남아 항로 구간, 기준 단가, 메모, "확인함" 체크는 이 브라우저에 저장되어 새로고침하거나 브라우저를 다시 켜도 남습니다. (다른 PC·다른 브라우저에는 없음)</div>
+    <div class="hint">올린 파일 원본, 불러온 CSV, 선박 목록, 접수 기록, 동남아 항로 구간, 기준 단가, 메모, "확인 완료" 체크는 팀 공용 서버에 저장되어 로그인한 팀원 모두가 같은 내용을 봅니다. 다른 팀원이 고친 내용은 30초 안에(또는 이 창을 다시 누를 때) 자동으로 반영됩니다. 화면에서 고른 선박·월·필터는 각자의 브라우저에만 저장됩니다.</div>
   </div>
 
   <div class="card">
@@ -200,9 +205,132 @@ details.vm>summary{cursor:pointer;font-weight:700;color:var(--navy);padding:2px 
   </div>
 </div>
 
+<!-- 로그인 화면 (팀 공용 비밀번호) -->
+<div id="loginBox" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:50;overflow:auto">
+  <form id="loginForm" class="card" style="max-width:380px;margin:12vh auto 0;padding:22px 20px">
+    <h1 style="margin-bottom:6px">선용금 정산 검토</h1>
+    <p class="sub">팀 공용 비밀번호로 로그인하세요.</p>
+    <label style="display:block;margin-bottom:10px">이름 <span class="note">(파일을 올린 사람 표시용)</span><br>
+      <input type="text" id="loginName" required autocomplete="name" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:var(--r-md);padding:6px 10px;min-height:36px"></label>
+    <label style="display:block;margin-bottom:14px">비밀번호<br>
+      <input type="password" id="loginPw" required autocomplete="current-password" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:var(--r-md);padding:6px 10px;min-height:36px"></label>
+    <button type="submit" class="primary" id="loginBtn" style="width:100%">로그인</button>
+    <div class="hint" id="loginMsg" style="color:var(--bad);margin-top:10px"></div>
+  </form>
+</div>
+<div id="bootMsg" style="position:fixed;inset:0;background:var(--bg);z-index:40;display:flex;align-items:center;justify-content:center;color:var(--sub)">불러오는 중…</div>
+
 <script type="text/plain" id="seed">선박,정산월,문서,구분,항목,일자,항구,수량,단가,금액_USD,대조금액_USD,증빙번호,비고</script>
+<script src="blob-client.js"></script>
 <script>
+/* ---------- 팀 공유 저장 (서버) ----------
+   화면 코드는 예전처럼 lsGet/lsSet을 쓰고, 공유 대상 키만 여기서 서버와 맞춘다.
+   항목(선박·파일·체크)별로 바뀐 부분만 보내므로 여러 명이 동시에 다른 항목을 고쳐도 서로 덮어쓰지 않는다. */
 (function(){
+'use strict';
+const KIND={'sy.roster':'s','sy.alias':'s','sy.pend':'s','sy.unit':'s','sy.csvs':'h','sy.pdfx':'h','sy.voy':'h','sy.memo':'h','sy.done':'h','sy.reg':'h2'};
+const SEP='\u001f';
+const S={ver:0,cache:{},synced:{},dirty:new Set(),busy:false,timer:null,failed:false,onReload:null,onAuth:null};
+const info=t=>{const el=document.getElementById('syncInfo');if(el)el.textContent=t};
+// 객체 → {항목: JSON} (h2는 선박|월 두 단계)
+function flat(kind,str){
+  const m=new Map();let o=null;try{o=str==null?null:JSON.parse(str)}catch(e){}
+  if(!o||typeof o!=='object')return m;
+  for(const a of Object.keys(o)){
+    if(kind==='h2'){const b=o[a];if(b&&typeof b==='object')for(const c of Object.keys(b))m.set(a+SEP+c,JSON.stringify(b[c]))}
+    else m.set(a,JSON.stringify(o[a]));
+  }
+  return m;
+}
+function apply(st){
+  S.ver=st.ver;
+  for(const k in KIND){
+    if(KIND[k]==='s'){const v=st.scalars[k];S.cache[k]=v==null?null:v;S.synced[k]=S.cache[k];continue}
+    const ent=Object.entries(st.hashes[k]||{}).map(([f,raw])=>{try{const x=JSON.parse(raw);return [f,x.s,x.v]}catch(e){return null}}).filter(Boolean).sort((a,b)=>a[1]-b[1]);
+    const o={},m=new Map();
+    for(const [f,,v] of ent){
+      m.set(f,JSON.stringify(v));
+      if(KIND[k]==='h2'){const i=f.indexOf(SEP);const a=f.slice(0,i),c=f.slice(i+1);(o[a]=o[a]||{})[c]=v}else o[f]=v;
+    }
+    S.cache[k]=ent.length?JSON.stringify(o):null;S.synced[k]=m;
+  }
+}
+async function api(url,opt){
+  const r=await fetch(url,Object.assign({credentials:'same-origin'},opt||{}));
+  if(r.status===401){S.onAuth&&S.onAuth();throw new Error('로그인이 필요합니다.')}
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||('서버 오류 '+r.status));
+  return d;
+}
+S.load=async function(){apply(await api('/api/state'))};
+S.has=k=>k in KIND;
+S.get=(k,def)=>S.cache[k]==null?def:S.cache[k];
+S.set=function(k,v){S.cache[k]=v==null?null:String(v);S.dirty.add(k);clearTimeout(S.timer);S.timer=setTimeout(S.flush,500);info('저장 중…')};
+S.flush=async function(){
+  if(S.busy||!S.dirty.size)return;
+  S.busy=true;
+  const keys=Array.from(S.dirty);S.dirty.clear();
+  const ops=[],next={};
+  for(const k of keys){
+    const kind=KIND[k],cur=S.cache[k];
+    if(kind==='s'){if(cur!==S.synced[k])ops.push({k,val:cur});next[k]=cur;continue}
+    const now=flat(kind,cur),old=S.synced[k]||new Map(),set={},del=[];
+    for(const [f,v] of now)if(old.get(f)!==v)set[f]=v;
+    for(const f of old.keys())if(!now.has(f))del.push(f);
+    if(Object.keys(set).length||del.length)ops.push({k,set,del});
+    next[k]=now;
+  }
+  try{
+    if(ops.length){
+      const d=await api('/api/state',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({ops})});
+      if(d.ver===S.ver+1)S.ver=d.ver;   // 그 사이 다른 사람이 고쳤으면 버전을 그대로 두어 다음 확인 때 새로 받는다
+    }
+    for(const k in next)S.synced[k]=next[k];
+    S.failed=false;info('저장됨 '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    keys.forEach(k=>S.dirty.add(k));S.failed=true;info('⚠ 저장 실패 — 다시 시도 중 ('+e.message+')');
+    clearTimeout(S.timer);S.timer=setTimeout(S.flush,5000);
+  }finally{S.busy=false;if(S.dirty.size&&!S.failed){clearTimeout(S.timer);S.timer=setTimeout(S.flush,300)}}
+};
+// 다른 팀원이 고친 내용 받아오기 (입력 중이거나 저장 대기 중이면 다음 번으로 미룬다)
+S.poll=async function(){
+  if(S.busy||S.dirty.size||document.hidden)return;
+  const a=document.activeElement;
+  if(a&&(a.tagName==='TEXTAREA'||(a.tagName==='INPUT'&&/^(text|number|search|date|month)$/.test(a.type))))return;
+  try{
+    const d=await api('/api/state?ver='+S.ver);
+    if(d.same||S.dirty.size)return;
+    apply(d);S.onReload&&S.onReload();
+  }catch(e){}
+};
+setInterval(S.poll,30000);
+window.addEventListener('focus',()=>S.poll());
+window.addEventListener('beforeunload',e=>{if(S.dirty.size||S.busy){S.flush();e.preventDefault();e.returnValue=''}});
+
+/* 원본 파일 (비공개 저장소) */
+async function pathOf(name,size){
+  const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(name+'|'+size));
+  const hex=Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  let ext=(name.includes('.')?name.split('.').pop():'').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,8);
+  return 'files/'+hex+'.'+(ext||'bin');
+}
+S.uploadFile=async function(file,onProgress){
+  const p=await pathOf(file.name,file.size);
+  await window.BlobClient.uploadPresigned(p,file,{access:'private',handleUploadUrl:'/api/upload',multipart:file.size>8*1048576,contentType:file.type||undefined,onUploadProgress:e=>onProgress&&onProgress(e.percentage)});
+};
+S.getFile=async function(name,size){
+  const p=await pathOf(name,size);
+  let r=null;
+  try{const d=await api('/api/file?p='+encodeURIComponent(p));r=await fetch(d.url)}catch(e){r=null}
+  if(!r||!r.ok){r=await fetch('/api/file?raw=1&p='+encodeURIComponent(p),{credentials:'same-origin'});if(r.status===401){S.onAuth&&S.onAuth();return null}}
+  return r.ok?await r.blob():null;
+};
+S.delFile=async function(name,size){try{await api('/api/file?p='+encodeURIComponent(await pathOf(name,size)),{method:'DELETE'})}catch(e){}};
+window.Sync=S;
+})();
+</script>
+<script>
+window.__startApp=function(){
 'use strict';
 const MONTH_FALLBACK='2026-08';
 const RULE={ '냉동컨테이너 관리수당':10, '자력도선 수당':50 };
@@ -223,8 +351,9 @@ const DEFAULT_ROSTER=['SENDAI TRADER','NINGBO TRADER','KOBE TRADER','QINGDAO TRA
 const DEFAULT_ALIAS={'TEST VESSEL 01':'SENDAI TRADER','TEST VESSEL 02':'NINGBO TRADER','TEST VESSEL 03':'KOBE TRADER','TEST VESSEL 04':'QINGDAO TRADER','TEST VESSEL 05':'TOYAMA TRADER'};
 const $=id=>document.getElementById(id);
 
-function lsGet(k,def){try{const v=localStorage.getItem(k);return v==null?def:v}catch(e){return def}}
-function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+// 공유 항목은 서버(Sync), 화면 선택값(선박·월·필터)은 이 브라우저에 저장
+function lsGet(k,def){if(Sync.has(k))return Sync.get(k,def);try{const v=localStorage.getItem(k);return v==null?def:v}catch(e){return def}}
+function lsSet(k,v){if(Sync.has(k)){Sync.set(k,v);return}try{localStorage.setItem(k,v)}catch(e){}}
 function lsJson(k,def){try{return JSON.parse(lsGet(k,''))||def}catch(e){return def}}
 
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -480,14 +609,11 @@ const keyOf=(v,c)=>v+'|'+c.doc+'|'+c.label+'|'+c.evidence;
 // 확인 완료로 체크한 항목은 불일치·확인 필요에서 빠지고 일치로 집계한다.
 const cnt=(v,s)=>{const d=lsJson(KEY.done,{});return RES[v].checks.filter(c=>{const done=!!d[keyOf(v,c)];return s==='ok'?(c.status==='ok'||done):(c.status===s&&!done)}).length};
 const cntLiq=v=>{const d=lsJson(KEY.done,{});return RES[v].checks.filter(c=>c.liq&&!d[keyOf(v,c)]).length};
-/* ---------- 올린 원본 파일 보관 (이 브라우저 IndexedDB) ---------- */
-let _db=null;
-const idb=()=>_db||(_db=new Promise((ok,no)=>{try{const q=indexedDB.open('sy-files',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}}));
+/* ---------- 올린 원본 파일 보관 (팀 공용 비공개 저장소) ---------- */
 const fkey=f=>f.name+'|'+f.size;
-async function blobOp(mode,fn){try{const db=await idb();return await new Promise((ok,no)=>{const t=db.transaction('f',mode),r=fn(t.objectStore('f'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})}catch(e){return null}}
-const saveBlob=file=>blobOp('readwrite',s=>s.put(file,fkey(file)));
-const getBlob=k=>blobOp('readonly',s=>s.get(k));
-const delBlob=k=>blobOp('readwrite',s=>s.delete(k));
+const splitKey=k=>{const i=k.lastIndexOf('|');return [k.slice(0,i),+k.slice(i+1)]};
+const getBlob=k=>{const [n,s]=splitKey(k);return Sync.getFile(n,s).catch(()=>null)};
+const delBlob=k=>{const [n,s]=splitKey(k);return Sync.delFile(n,s)};
 // 선박을 누르면 그 선박의 첨부파일 목록을 보여준다 (선택한 달이 맨 위)
 function renderFiles(v,M){
   const box=$('fileBox'),reg=(v&&REG[v])||{},ms=Object.keys(reg).sort().reverse();
@@ -496,7 +622,7 @@ function renderFiles(v,M){
   ms.sort((a,b)=>(b===M)-(a===M)||(a<b?1:-1));
   $('fileInfo').textContent='· '+esc(v)+' · 총 '+ms.reduce((s,m)=>s+reg[m].length,0)+'개';
   $('fileList').innerHTML=ms.map(m=>'<div class="st" style="margin-top:8px">'+esc(m)+(m===M?' <span class="tag ok">선택한 달</span>':'')+'</div>'+
-    reg[m].map(f=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-open="'+esc(fkey(f))+'">보기</button></div>').join('')).join('');
+    reg[m].map(f=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+(f.by?' · '+esc(f.by):'')+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-open="'+esc(fkey(f))+'">보기</button></div>').join('')).join('');
 }
 // "보기"를 누르면 새 탭 없이 그 줄 바로 아래에 파일을 펼쳐 보여준다 (다시 누르면 닫힘)
 $('fileList').addEventListener('click',async e=>{
@@ -506,7 +632,7 @@ $('fileList').addEventListener('click',async e=>{
   e.target.disabled=true;
   const b=await getBlob(k);
   e.target.disabled=false;
-  if(!b){alert('이 파일의 원본이 이 브라우저에 저장돼 있지 않습니다. 파일을 다시 올려 주세요.');return}
+  if(!b){alert('이 파일의 원본을 서버에서 찾지 못했습니다. (업로드가 끝나기 전에 창을 닫았거나 업로드에 실패했을 수 있습니다) 파일을 다시 올려 주세요.');return}
   const name=k.slice(0,k.lastIndexOf('|')),ext=(name.split('.').pop()||'').toLowerCase();
   const box=document.createElement('div');box.className='viewer';box.style.cssText='margin:6px 0 10px';
   const frame='width:100%;border:1px solid var(--line);border-radius:6px;background:#fff';
@@ -801,16 +927,19 @@ async function detectFile(f,year){
 }
 function addReg(v,m,f){
   REG[v]=REG[v]||{};const a=(REG[v][m]=REG[v][m]||[]);
-  if(!a.some(x=>x.name===f.name&&x.size===f.size))a.push({name:f.name,size:f.size,kind:f.kind,at:new Date().toISOString().slice(0,10),liq:f.liq||[]});
+  if(!a.some(x=>x.name===f.name&&x.size===f.size))a.push({name:f.name,size:f.size,kind:f.kind,at:new Date().toISOString().slice(0,10),liq:f.liq||[],by:f.by||lsGet('sy.me','')});
   saveReg();
 }
 async function handleFiles(list){
   const files=Array.from(list||[]);if(!files.length)return;
   const year=+($('year').value||new Date().getFullYear());
-  const msg=[];
+  const msg=[],ups=[],pct={};
+  const upInfo=()=>{const ks=Object.keys(pct);$('dropMsg').textContent=ks.length?'원본 업로드 중: '+ks.map(n=>n+' '+Math.round(pct[n])+'%').join(' / '):''};
   for(const f of files){
     const kind=kindOf(f.name);
-    await saveBlob(f);   // 나중에 다시 열어 볼 수 있게 원본을 보관한다
+    // 팀원도 열어 볼 수 있게 원본을 서버에 올린다 (검토는 업로드와 동시에 진행)
+    pct[f.name]=0;upInfo();
+    ups.push(Sync.uploadFile(f,p=>{if(f.name in pct){pct[f.name]=p;upInfo()}}).then(()=>{delete pct[f.name];upInfo()},err=>{delete pct[f.name];upInfo();msg.push(f.name+': ⚠ 원본 업로드 실패 — 다시 올려 주세요 ('+(err.message||err)+')')}));
     if(kind==='CSV'){
       try{
         const text=await f.text();
@@ -853,8 +982,9 @@ async function handleFiles(list){
       }
     }
   }
-  $('dropMsg').textContent=msg.join(' / ');
   rebuild();
+  await Promise.all(ups);
+  $('dropMsg').textContent=msg.join(' / ');
 }
 function renderTL(){
   const vs=allVessels(),cur=nowYM();
@@ -893,7 +1023,7 @@ function renderTL(){
   if(TLSEL){
     const files=(REG[TLSEL.v]||{})[TLSEL.m]||[];
     d.innerHTML='<div class="st" style="margin-top:10px">'+esc(TLSEL.v)+' · '+TLSEL.m+' 접수 파일</div>'+
-      (files.length?files.map((f,i)=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-del="'+i+'">삭제</button></div>').join(''):'<div class="note">접수된 파일이 없습니다. 파일을 끌어다 놓고 선박·월을 지정하세요.</div>');
+      (files.length?files.map((f,i)=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+(f.by?' · '+esc(f.by):'')+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-del="'+i+'">삭제</button></div>').join(''):'<div class="note">접수된 파일이 없습니다. 파일을 끌어다 놓고 선박·월을 지정하세요.</div>');
   }else d.innerHTML='';
   // 분류 대기
   $('pend').innerHTML=(PEND.length?'<div class="st row" style="margin-top:10px"><span class="grow">분류 대기 ('+PEND.length+') <span class="note" style="font-weight:400">선박·월을 자동으로 골라 두었습니다. 맞는지 확인하고 등록하세요.</span></span>'+(PEND.length>1?'<button data-act="all">선박·월이 채워진 파일 모두 등록</button>':'')+'</div>':'')+PEND.map(p=>
@@ -1070,6 +1200,64 @@ $('onlyBad').checked=lsGet(KEY.only,'0')==='1';
 for(const o of Object.keys(ALIAS))if(ROSTER.includes(ALIAS[o]))renameKey(o,ALIAS[o]);   // 옛 이름으로 저장된 기록 이어받기
 renderRoster();
 try{rebuild()}catch(err){alert('저장된 데이터를 읽지 못했습니다: '+err.message)}
+
+// 다른 팀원이 고친 내용을 받으면 화면을 다시 그린다 (고른 선박·월은 그대로)
+Sync.onReload=function(){
+  ROSTER=lsJson(KEY.roster,null);
+  if(!Array.isArray(ROSTER)||!ROSTER.every(x=>typeof x==='string'))ROSTER=DEFAULT_ROSTER.slice();
+  ALIAS=lsJson(KEY.alias,null);
+  if(!ALIAS||typeof ALIAS!=='object'||Array.isArray(ALIAS))ALIAS=Object.assign({},DEFAULT_ALIAS);
+  SRC=lsJson(KEY.csvs,null);if(!SRC||typeof SRC!=='object')SRC={};
+  PDFX=lsJson(KEY.pdfx,{});REG=lsJson(KEY.reg,{});PEND=lsJson(KEY.pend,[]);
+  $('unit').value=lsGet(KEY.unit,'');
+  renderRoster();
+  try{rebuild()}catch(err){}
+};
+};
+</script>
+<script>
+/* ---------- 시작: 로그인 확인 → 공유 데이터 불러오기 → 화면 시작 ---------- */
+(function(){
+  const $=id=>document.getElementById(id);
+  let started=false;
+  const lsGet=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+  const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+  function showLogin(msg){
+    $('bootMsg').style.display='none';
+    $('loginBox').style.display='';
+    $('loginMsg').textContent=msg||'';
+    $('loginName').value=lsGet('sy.me');
+    ($('loginName').value?$('loginPw'):$('loginName')).focus();
+  }
+  async function start(){
+    try{await Sync.load()}
+    catch(e){if(/로그인/.test(e.message))return showLogin();$('bootMsg').textContent='서버에 연결하지 못했습니다: '+e.message+' — 잠시 뒤 새로고침하세요.';return}
+    $('loginBox').style.display='none';$('bootMsg').style.display='none';
+    $('meInfo').textContent=lsGet('sy.me')?'· '+lsGet('sy.me'):'';
+    if(!started){started=true;window.__startApp()}else Sync.onReload&&Sync.onReload();
+  }
+  Sync.onAuth=()=>showLogin('로그인이 만료되었습니다. 다시 로그인하세요.');
+  $('loginForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=$('loginName').value.trim(),pw=$('loginPw').value;
+    if(!name){$('loginMsg').textContent='이름을 입력하세요.';return}
+    $('loginBtn').disabled=true;$('loginMsg').textContent='';
+    try{
+      const r=await fetch('/api/login',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({password:pw})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.error||'로그인 실패');
+      lsSet('sy.me',name);$('loginPw').value='';
+      await start();
+    }catch(err){$('loginMsg').textContent=err.message}
+    finally{$('loginBtn').disabled=false}
+  });
+  $('logoutBtn').addEventListener('click',async()=>{
+    if(!confirm('로그아웃할까요?'))return;
+    await Sync.flush();
+    await fetch('/api/login',{method:'DELETE',credentials:'same-origin'}).catch(()=>{});
+    location.reload();
+  });
+  start();
 })();
 </script>
 </body>
