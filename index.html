@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>선용금 정산 검토</title>
+<style>
+/* 차분한 업무 도구: 남색 포인트 한 가지, 흰색·연회색 바탕, 상태 색만 강조 */
+:root{
+  --navy:#1F3A6E;--navy-dark:#162B54;--navy-bg:#EAEFF8;
+  --bg:#F4F5F7;--card:#FFFFFF;
+  --ink:#1D2433;--sub:#667085;--line:#E2E5EA;
+  --ok:#1E7A4F;--okbg:#E6F4EC;--bad:#B42318;--badbg:#FDECEA;--warn:#8A5A00;--warnbg:#FFF1D6;
+  --accent:var(--navy);
+  --r-sm:4px;--r-md:6px;--r-lg:8px
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Malgun Gothic","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:20px;font-weight:700;color:var(--navy);margin:0 0 4px}
+.sub{color:var(--sub);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px}
+.st{font-weight:700;color:var(--navy);padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--line)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.grow{flex:1}
+button,select,input[type=number],input[type=search]{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:6px 10px;min-height:36px;outline:none}
+select:focus,input[type=number]:focus,input[type=search]:focus,textarea:focus{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy-bg)}
+button{cursor:pointer;padding:6px 14px;font-weight:600}
+button:hover{border-color:var(--navy);color:var(--navy)}
+button.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+button.primary:hover{background:var(--navy-dark);color:#fff}
+label.file{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;min-height:36px;border:1px solid var(--navy);color:var(--navy);background:var(--card);padding:6px 14px;border-radius:var(--r-md);font-weight:600}
+label.file:hover{background:var(--navy-bg)}
+label.file input{display:none}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--sub);background:var(--bg);font-size:12px;white-space:nowrap}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-block;padding:1px 8px;border-radius:var(--r-sm);font-size:12px;font-weight:700}
+.tag.ok{background:var(--okbg);color:var(--ok)}
+.tag.bad{background:var(--badbg);color:var(--bad)}
+.tag.warn{background:var(--warnbg);color:var(--warn)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.kpi{border:1px solid var(--line);border-radius:var(--r-lg);background:var(--card);padding:10px 12px}
+.kpi h3{margin:0 0 6px;font-size:13px;font-weight:700;color:var(--navy)}
+.kpi div{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
+.kpi .end{border-top:1px solid var(--line);margin-top:4px;padding-top:4px;font-weight:700}
+.ov tr{cursor:pointer}
+.ov tr:hover td{background:var(--bg)}
+.ov tr.sel td{background:var(--navy-bg)}
+.ov tr.sel td:first-child{font-weight:700;color:var(--navy)}
+tr.chk td{color:var(--sub)}
+textarea{width:100%;min-height:70px;font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:8px;outline:none}
+.note{color:var(--sub);font-size:12px}
+.hint{font-size:12px;color:var(--sub);margin-top:6px}
+input[type=checkbox]{width:18px;height:18px;vertical-align:middle;accent-color:var(--navy)}
+.dz{border:1.5px dashed var(--navy);border-radius:var(--r-lg);padding:18px 12px;text-align:center;color:var(--navy);background:var(--navy-bg);font-weight:600}
+body.dragging .dz{background:#d8e2f4}
+body.dragging::after{content:"여기에 놓으면 접수됩니다";position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(31,58,110,.18);border:3px dashed var(--navy);color:var(--navy);font-size:20px;font-weight:700;z-index:50;pointer-events:none}
+.pr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.pr .nm{flex:1;min-width:180px;word-break:break-all}
+.tag.mute{background:var(--bg);color:var(--sub);font-weight:500}
+#tl th.mo{text-align:center;min-width:48px}
+#tl td.c{text-align:center;cursor:pointer;padding:6px 4px}
+#tl td.c.on{box-shadow:inset 0 0 0 2px var(--navy)}
+#tl td.vn{position:sticky;left:0;background:var(--card);white-space:nowrap;font-weight:600;cursor:pointer}
+#tl td.sm,#tl th.sm{text-align:right;white-space:nowrap;color:var(--sub)}
+.fl{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.fl button{min-height:30px;padding:2px 10px}
+input.rn{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:6px 10px;min-height:36px;outline:none;flex:1;min-width:180px}
+input.rn:focus{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy-bg)}
+.vr{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.vr .no{width:24px;text-align:right;color:var(--sub);font-size:12px}
+.vr button{min-height:30px;padding:2px 10px}
+details.vm>summary{cursor:pointer;font-weight:700;color:var(--navy);padding:2px 0}
+@media (max-width:640px){
+  .pr input{width:100%!important}
+  body{font-size:15px}
+  .wrap{padding:12px 12px 48px}
+  h1{font-size:18px}
+  .card{padding:12px}
+  .row{gap:8px}
+  .row>*{max-width:100%}
+  input[type=search],#unit{width:100%!important}
+  .row label{display:flex;flex-direction:column;gap:4px;width:100%}
+  .grow{display:none}
+  button,label.file{width:100%;text-align:center;padding:10px 12px}
+  select,input[type=number],input[type=search]{padding:10px;font-size:16px}
+  input[type=checkbox]{width:24px;height:24px}
+  .row label:has(input[type=checkbox]){display:flex;align-items:center;gap:8px}
+  .ov th,.ov td{padding:10px 6px}
+  .kpis{grid-template-columns:1fr}
+  /* 검증 결과표를 카드 목록으로 */
+  #res,#res tbody{display:block}
+  #res tr.hd{display:none}
+  #res tr{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:8px 10px;margin:8px 0}
+  #res td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;padding:4px 0;text-align:right;white-space:normal}
+  #res td[data-label]::before{content:attr(data-label);color:var(--sub);font-size:12px;text-align:left;flex:none}
+  #res td:nth-child(2){display:block;text-align:left;font-weight:600;order:-1}
+  #res td:nth-child(2)::before{content:none}
+  #res td.note{font-size:12px;word-break:break-all}
+  textarea{font-size:16px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>선용금 정산 검토</h1>
+  <p class="sub">선박 정산서 데이터(CSV)를 올리면 합계·잔액·증빙·수당 규정·전월 일자·주류를 다시 계산해 불일치 후보를 표시합니다. 승인·반려는 사람이 직접 판단합니다.</p>
+
+  <div class="card">
+    <div class="row">
+      <label class="file">파일 선택<input type="file" id="file" multiple accept=".csv,.pdf,.xlsx,.xls,.png,.jpg,.jpeg,.eml,.msg,text/csv,application/pdf"></label>
+      <button id="seedBtn">불러온 데이터 지우기</button>
+      <span class="note" id="srcInfo"></span>
+      <span class="grow"></span>
+      <label>기준 1인 1일 단가($) <input type="number" id="unit" step="0.01" min="0" style="width:90px" placeholder="미입력"></label>
+    </div>
+    <div class="hint">불러온 CSV(여러 달 파일 모두), 선택한 선박, 동남아 항로 구간, 기준 단가, 메모, "확인함" 체크는 이 브라우저에 저장되어 새로고침하거나 브라우저를 다시 켜도 남습니다. (다른 PC·다른 브라우저에는 없음)</div>
+  </div>
+
+  <div class="card">
+    <div class="st">첨부파일 접수</div>
+    <div class="dz">메일 첨부파일(CSV · PDF · 엑셀 · 이미지)을 이 화면 어디에나 끌어다 놓으세요.<br><span class="note">여러 개를 한꺼번에 놓아도 됩니다. 위의 "파일 선택"으로도 올릴 수 있습니다.</span></div>
+    <div class="hint" id="dropMsg"></div>
+    <div id="pend"></div>
+    <div class="hint">CSV는 내용을 읽어 아래 점검에 반영하고, 선박·정산월은 CSV 안의 값으로 자동 등록합니다. 엑셀·PDF는 파일 안의 글자를 읽어 선박·월을 자동으로 찾아 "분류 대기"에 미리 골라 둡니다(못 읽으면 파일명으로 추정). 첨부파일 글자에 주류 의심 단어(맥주·소주·위스키 등)가 있으면 바로 "주류 의심"으로 표시합니다. 스캔 PDF·이미지는 글자 인식(OCR, 앞 8쪽까지)으로 읽으며, 처음 사용할 때 인터넷에서 인식 도구를 내려받아 시간이 걸립니다. 그래도 찾지 못하면 직접 선택합니다. 접수 기록에는 파일명·크기·선박·월만 저장하고 파일 내용은 저장하지 않습니다. 선용금 정산서에 선박 목록에 없는 새 선박 이름이 들어 있으면 "선박 목록에 추가할까요?"라고 물어봅니다. 추가하지 않으면 그 선박은 제외됩니다.</div>
+  </div>
+
+  <div class="card">
+    <details class="vm" id="vmBox">
+      <summary>선박 목록 관리 <span class="note" id="rosterInfo"></span></summary>
+      <div class="hint" style="margin-bottom:6px">여기에 등록된 선박만 점검 결과·접수 현황에 표시됩니다. 이름을 고쳐 "이름 변경"을 누르면 접수 기록·메모·확인 체크도 새 이름으로 옮겨지고, 같은 선박의 CSV 데이터도 새 이름으로 이어집니다.</div>
+      <div id="roster"></div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" class="rn" id="vnew" placeholder="추가할 선박 이름 (예: KOBE TRADER)" autocomplete="off">
+        <button id="vadd" class="primary">선박 추가</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <div class="st" style="border:0;padding:0;margin:0;flex:1">월별 접수 현황 (타임라인)</div>
+      <label>연도 <select id="year"></select></label>
+    </div>
+    <div style="overflow-x:auto"><table id="tl"></table></div>
+    <div id="tlDetail"></div>
+    <div class="hint">칸을 누르면 접수된 파일을 보고 삭제할 수 있습니다. 이번 달까지 접수가 없는 칸은 "미등록"으로 표시합니다. 선박 목록은 위 "선박 목록 관리"에 등록된 선박입니다.</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <strong class="st" style="border:0;padding:0;margin:0">선박별 점검 결과</strong>
+      <span class="grow"></span>
+      <input type="search" id="q" placeholder="선박 이름 검색 (예: SENDAI)" autocomplete="off" style="width:220px">
+      <span class="note" id="qInfo"></span>
+    </div>
+    <table class="ov" id="ov"></table>
+  </div>
+
+  <div class="row" style="margin-bottom:10px">
+    <label>정산월 <select id="month"></select></label>
+    <label>선박 <select id="vessel"></select></label>
+    <label><input type="checkbox" id="onlyBad"> 불일치·확인 필요만 보기</label>
+    <label><input type="checkbox" id="onlyLiq"> 주류 의심만 보기</label>
+  </div>
+
+  <div class="card" id="seaBox" style="display:none">
+    <div class="st">동남아 항로 구간 — <span id="seaName"></span> <span class="note">(동남아 항로 수당 대상 선박)</span></div>
+    <div class="row">
+      <label>시작일 <input type="date" id="voyS"></label>
+      <label>종료일 <input type="date" id="voyE"></label>
+      <button id="voyClr">지우기</button>
+    </div>
+    <div class="hint">항차마다 동남아 항로 구간이 달라 직접 입력해야 합니다. 종료일을 비우면 이번 달 말까지로 봅니다. 이번 달에 걸친 일수만큼 월 기준 금액(선장 $300 · 일항기사 $200 · 기타 한국선원 $100)을 일할 계산해 지급 내역과 대조합니다. 지급 내역은 수당증빙·선용금정산의 항목명에 "동남아"가 들어간 행으로 인식합니다.</div>
+  </div>
+
+  <div class="card" id="fileBox" style="display:none">
+    <div class="st">첨부파일 <span class="note" id="fileInfo"></span></div>
+    <div id="fileList"></div>
+    <div class="hint">"보기"를 누르면 올렸던 원본 파일이 이 화면 그 줄 아래에 펼쳐지고, "닫기"로 접습니다. PDF·이미지는 원본 그대로, 엑셀·텍스트는 글자만 보여줍니다. 원본은 이 브라우저에만 저장되며, 이 기능을 넣기 전에 올린 파일은 다시 올려야 볼 수 있습니다.</div>
+  </div>
+
+  <div class="card"><div class="kpis" id="kpis"></div></div>
+
+  <div class="card">
+    <div class="st">검증 결과 <span class="note" id="counts"></span></div>
+    <div style="overflow-x:auto"><table id="res"></table></div>
+  </div>
+
+  <div class="card" id="pdfxBox" style="display:none">
+    <div class="st">PDF에서 읽은 값 <span class="note">글자 인식은 숫자를 틀리게 읽을 수 있습니다. 원본과 다르면 고쳐 쓰세요. 고치면 바로 다시 점검합니다. 행 금액은 쉼표로 구분합니다.</span></div>
+    <div id="pdfx"></div>
+  </div>
+
+  <div class="card">
+    <div class="st">검토 메모 (선박별)</div>
+    <textarea id="memo" placeholder="이 선박에 대해 선박·매닝사에 확인할 내용을 적어 두세요."></textarea>
+  </div>
+</div>
+
+<script type="text/plain" id="seed">선박,정산월,문서,구분,항목,일자,항구,수량,단가,금액_USD,대조금액_USD,증빙번호,비고</script>
+<script>
+(function(){
+'use strict';
+const MONTH_FALLBACK='2026-08';
+const RULE={ '냉동컨테이너 관리수당':10, '자력도선 수당':50 };
+// 주류 의심 단어 (인보이스·주부식·접대품의 품목명·비고, 첨부파일 글자에서 찾는다)
+const LIQUOR=/whisk|scotch|bourbon|\bwines?\b|beer|lager|vodka|brandy|\brum\b|\bgin\b|soju|\bsake\b|liquor|alcohol|champagne|cognac|tequila|hennessy|jinro|\bcass\b|\bhite\b|makgeolli|\bspirits?\b|jim\s*beam|jack\s*daniel|johnnie|chivas|ballantine|smirnoff|absolut|bacardi|위스키|와인|맥주|소주|보드카|양주|사케|막걸리|주류|브랜디|샴페인|코냑|꼬냑|짐빔|발렌타인|조니워커|잭다니엘|참이슬|처음처럼/i;
+const LIQUOR_G=new RegExp(LIQUOR.source,'gi');
+const findLiquor=t=>Array.from(new Set((t||'').match(LIQUOR_G)||[])).map(s=>s.toLowerCase()).slice(0,6);
+// 동남아 항로 수당 (소형선 급여선박): 월 기준, 기항일부터 일할 계산, 한국 선원만
+const SEA_FIXED=['GRACE PIONEER','GRACE MERCHANT','PACIFIC BUSAN','PACIFIC NINGBO','MOJI EXPRESS','HANSUNG WEIHAI','HAKATA EXPRESS'];
+const isSea=v=>/TRADER$/i.test(v.trim())||SEA_FIXED.some(x=>x.toLowerCase()===v.trim().toLowerCase());
+const SEA_RATE=[['선장',300,/선장|master|capt/i],['일항기사',200,/일항|일기|1항|1기|chief\s*off|first\s*eng|1st/i],['기타 한국선원',100,/기타|other|etc/i]];
+const SEA_ITEM=/동남아|SE\.?\s*ASIA|SOUTH\s*EAST/i;
+const EPS=0.005;
+const OCR_PAGES=40;
+const KEY={pdfx:'sy.pdfx',csvs:'sy.csvs',voy:'sy.voy',month:'sy.month',csv:'sy.csv',name:'sy.csvname',vessel:'sy.vessel',unit:'sy.unit',only:'sy.only',q:'sy.q',memo:'sy.memo',done:'sy.done',reg:'sy.reg',pend:'sy.pend',year:'sy.year',roster:'sy.roster',alias:'sy.alias'};
+const DEFAULT_ROSTER=['SENDAI TRADER','NINGBO TRADER','KOBE TRADER','QINGDAO TRADER','TOYAMA TRADER','AKITA TRADER','GRACE PIONEER','GRACE MERCHANT','SAWASDEE INCHEON','SAWASDEE SIRIUS','SAWASDEE RIGEL','SAWASDEE DENEB','PACIFIC BUSAN','PACIFIC NINGBO','HAKATA EXPRESS','QINGDAO VOYAGER','TIANJIN VOYAGER','HANSUNG WEIHAI','MOJI EXPRESS'];
+// 옛 이름 → 현재 이름 (이전에 저장된 CSV·접수 기록을 이어 쓰기 위함. 선박 이름을 바꾸면 여기에 기록된다)
+const DEFAULT_ALIAS={'TEST VESSEL 01':'SENDAI TRADER','TEST VESSEL 02':'NINGBO TRADER','TEST VESSEL 03':'KOBE TRADER','TEST VESSEL 04':'QINGDAO TRADER','TEST VESSEL 05':'TOYAMA TRADER'};
+const $=id=>document.getElementById(id);
+
+function lsGet(k,def){try{const v=localStorage.getItem(k);return v==null?def:v}catch(e){return def}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function lsJson(k,def){try{return JSON.parse(lsGet(k,''))||def}catch(e){return def}}
+
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=n=>n==null?'':n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const r2=x=>Math.round(x*100)/100;
+
+let ROSTER=lsJson(KEY.roster,null);
+if(!Array.isArray(ROSTER)||!ROSTER.every(x=>typeof x==='string'))ROSTER=DEFAULT_ROSTER.slice();
+let ALIAS=lsJson(KEY.alias,null);
+if(!ALIAS||typeof ALIAS!=='object'||Array.isArray(ALIAS))ALIAS=Object.assign({},DEFAULT_ALIAS);
+const saveRoster=()=>lsSet(KEY.roster,JSON.stringify(ROSTER));
+const saveAlias=()=>lsSet(KEY.alias,JSON.stringify(ALIAS));
+const sameName=(a,b)=>a.trim().toLowerCase()===b.trim().toLowerCase();
+// CSV·파일에 적힌 선박 이름을 목록의 정식 이름으로 맞춘다 (옛 이름 변환, 대소문자 무시)
+const canon=v=>{v=ALIAS[v]||v;return ROSTER.find(x=>sameName(x,v))||v};
+
+function parseCSV(t){
+  t=t.replace(/^﻿/,'');
+  const out=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++} else q=false } else f+=c }
+    else if(c==='"') q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n')i++; row.push(f);f=''; if(row.some(x=>x!==''))out.push(row); row=[] }
+    else f+=c;
+  }
+  if(f!==''||row.length){row.push(f); if(row.some(x=>x!==''))out.push(row)}
+  return out;
+}
+function toRows(text){
+  const t=parseCSV(text); if(t.length<2) return [];
+  const h=t[0].map(s=>s.trim());
+  const idx=n=>h.indexOf(n);
+  const need=['선박','문서','구분','항목','금액_USD'];
+  for(const n of need) if(idx(n)<0) throw new Error('필수 컬럼이 없습니다: '+n);
+  const g=(r,n)=>{const i=idx(n);return i<0?'':(r[i]||'').trim()};
+  const num=s=>{if(s==='')return null;const v=parseFloat(s.replace(/,/g,''));return isNaN(v)?null:v};
+  return t.slice(1).map(r=>({v:canon(g(r,'선박')),month:g(r,'정산월')||MONTH_FALLBACK,doc:g(r,'문서'),cat:g(r,'구분'),item:g(r,'항목'),date:g(r,'일자'),port:g(r,'항구'),
+    qty:num(g(r,'수량')),price:num(g(r,'단가')),amt:num(g(r,'금액_USD')),ref:num(g(r,'대조금액_USD')),evid:g(r,'증빙번호'),note:g(r,'비고')})).filter(r=>r.v);
+}
+
+/* ---------- 검증 ---------- */
+function analyze(rs,vessel,month,byMonth){
+  const checks=[];const sum=a=>r2(a.reduce((s,x)=>s+(x.amt||0),0));
+  const prevYM=(()=>{const [y,m]=month.split('-').map(Number);const d=new Date(y,m-2,1);return d.getFullYear()+'-'+pad2(d.getMonth()+1)})();
+  const prevRows=(byMonth&&byMonth[prevYM])||null;
+  const pick=(doc,cat)=>rs.filter(r=>r.doc===doc&&(!cat||r.cat===cat));
+  const add=(doc,label,status,read,calc,evidence)=>checks.push({doc,label,status,read,calc,diff:(read!=null&&calc!=null)?r2(read-calc):null,evidence});
+  const cmp=(doc,label,read,calc,evidence)=>add(doc,label,Math.abs(read-calc)<EPS?'ok':'bad',read,calc,evidence);
+  const monthStart=(rs[0]&&rs[0].month||MONTH_FALLBACK)+'-01';
+  const sm={};
+  const docs=[['선용금정산','수령','지출'],['주부식정산','보급','소비'],['접대품정산','보급','소비']];
+  for(const [doc,inCat,outCat] of docs){
+    const prev=pick(doc,'잔액').find(r=>r.item==='전월잔액');
+    const close=pick(doc,'잔액').find(r=>r.item==='당월잔액');
+    const tot=pick(doc,'합계')[0];
+    if(!prev||!close||!tot){add(doc,'필수 행 누락(전월잔액·당월잔액·합계)','warn',null,null,doc);continue}
+    const inflow=sum(pick(doc,inCat)),outflow=sum(pick(doc,outCat));
+    cmp(doc,(outCat==='지출'?'지출':'소비')+'액 합계 재계산',tot.amt,outflow,doc+' · 합계 행');
+    cmp(doc,'잔액 연속성 (전월 + '+inCat+' − '+outCat+' = 당월)',close.amt,r2(prev.amt+inflow-outflow),doc+' · 당월잔액');
+    if(prev.ref!=null) cmp(doc,'전월잔액 = 전월 기말잔액',prev.amt,prev.ref,doc+' · 전월잔액 ('+(prev.evid||'전월 정산서')+')');
+    // 전월 정산서가 같이 올라와 있으면 그 달의 당월잔액과 직접 대조한다
+    const pc=prevRows&&prevRows.find(r=>r.doc===doc&&r.cat==='잔액'&&r.item==='당월잔액');
+    if(pc) cmp(doc,'전월 정산서('+prevYM+') 당월잔액 = 이번 달 전월잔액',prev.amt,pc.amt,doc+' · '+prevYM+' 당월잔액 ↔ '+month+' 전월잔액');
+    sm[doc]={prev:prev.amt,inflow,outflow,close:close.amt,inCat,outCat};
+  }
+  // 소비 행 수량×단가
+  for(const r of rs){
+    if(r.doc.endsWith('정산')&&r.cat==='소비'&&r.qty!=null&&r.price!=null&&r.amt!=null){
+      const c=r2(r.qty*r.price); if(Math.abs(c-r.amt)>=EPS) add(r.doc,'수량 × 단가 = 금액: '+r.item,'bad',r.amt,c,r.doc+' · '+r.item+' '+r.date);
+    }
+  }
+  // 보급 vs 인보이스 합계
+  for(const r of rs.filter(x=>x.cat==='보급'&&x.evid)){
+    const inv=rs.filter(x=>x.doc==='인보이스'&&x.evid===r.evid);
+    if(!inv.length){add(r.doc,'인보이스 없음: '+r.evid,'warn',r.amt,null,r.doc+' · 보급 '+r.date+' · '+r.evid);continue}
+    cmp(r.doc,'보급액 = 인보이스 합계: '+r.evid,r.amt,sum(inv),r.doc+' · 보급 '+r.date+' '+r.port+' · '+r.evid);
+  }
+  for(const r of rs.filter(x=>x.cat==='보급'&&!x.evid&&['주부식정산','접대품정산'].includes(x.doc))){
+    add(r.doc,'보급액에 맞는 인보이스를 찾지 못함: '+fmt(r.amt),'warn',r.amt,null,r.doc+' · '+r.item+(r.date?' · '+r.date:''));
+  }
+  for(const r of rs.filter(x=>x.cat==='안내'))add(r.doc,r.item,'warn',null,null,r.doc+(r.note?' · '+r.note:''));
+  // 선용금 지출 ↔ 증빙, 교차 확인
+  const cash=pick('선용금정산','지출');
+  for(const r of cash){
+    if(r.ref!=null) cmp('선용금정산','증빙 일치: '+r.item,r.amt,r.ref,'선용금정산 · 지출 · '+r.item+(r.evid?' · '+r.evid:''));
+  }
+  const cross=(item,doc,label)=>{const a=cash.find(x=>x.item===item);if(a&&sm[doc]) cmp('선용금정산',item+' = '+label,a.amt,sm[doc].inflow,'선용금정산 · '+item+' ↔ '+doc+' 보급 합계')};
+  cross('Provision','주부식정산','주부식 보급 합계');
+  cross('Entertainment','접대품정산','접대품 보급 합계');
+  // 지출 항목명을 못 읽는 경우(PDF)에는 금액으로 찾는다: 선용금 지출 중에 주부식·접대품 보급 합계와 같은 금액이 있어야 한다
+  if(cash.length&&!cash.some(x=>x.item==='Provision'||x.item==='Entertainment')){
+    for(const [doc,label] of [['주부식정산','주부식 구입'],['접대품정산','접대품 구입']]){
+      if(!sm[doc]||!sm[doc].inflow)continue;
+      const hit=cash.some(x=>Math.abs((x.amt||0)-sm[doc].inflow)<EPS);
+      add('선용금정산','선용금 지출에 '+label+' 금액('+doc.replace('정산','')+' 보급 합계) 있음',hit?'ok':'bad',hit?sm[doc].inflow:null,sm[doc].inflow,'선용금정산 지출 항목 ↔ '+doc+' 보급 합계');
+    }
+  }
+  const allow=pick('수당증빙','수당');
+  if(allow.length){
+    const sp=cash.find(x=>x.item==='Special allowance');
+    if(sp) cmp('선용금정산','Special allowance = 수당 증빙 합계',sp.amt,sum(allow.filter(a=>!/GMDSS/.test(a.item))),'선용금정산 · Special allowance ↔ 수당증빙(GMDSS 제외)');
+    const gm=cash.find(x=>x.item==='GMDSS allowance'),ga=allow.find(a=>/GMDSS/.test(a.item));
+    if(gm&&ga) cmp('선용금정산','GMDSS allowance = GMDSS 수당 증빙',gm.amt,ga.amt,'선용금정산 ↔ '+ga.evid);
+  }
+  for(const a of allow){
+    if(a.ref!=null) cmp('수당증빙','수당 증빙 금액 일치: '+a.item,a.amt,a.ref,'수당증빙 · '+a.item+' · '+a.evid);
+    if(a.qty!=null&&a.price!=null) cmp('수당증빙','수량 × 단가 = 금액: '+a.item,a.amt,r2(a.qty*a.price),'수당증빙 · '+a.item+' · '+a.evid);
+    if(RULE[a.item]!=null&&a.price!=null) cmp('수당증빙','규정 단가($'+RULE[a.item]+'): '+a.item,a.price,RULE[a.item],'수당 규정 Rev.2025.07.07 ↔ '+a.evid);
+  }
+  // 전월 일자 혼입
+  for(const r of rs){
+    if(['소비','보급','품목'].includes(r.cat)&&r.date){
+      const d=r.date.split('~')[0];
+      if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<monthStart) add(r.doc,'전월 일자 항목: '+r.item+' '+r.date,'warn',r.amt,null,r.doc+' · '+r.cat+' · '+r.port+(r.evid?' · '+r.evid:''));
+    }
+  }
+  // 주류: 인보이스에는 있으면 안 되고, 주부식·접대품도 담당자가 한 번 더 본다 (품목명·비고 모두 검사)
+  for(const r of rs){
+    if(!['인보이스','주부식정산','접대품정산'].includes(r.doc)||!['품목','소비','보급'].includes(r.cat))continue;
+    if(!LIQUOR.test(r.item+' '+r.note))continue;
+    const head=r.doc==='인보이스'?'주류 의심 — 인보이스에 포함 불가: ':r.doc==='접대품정산'?'주류 의심 — 담당자 재검토(접대품): ':'주류 의심 — 담당자 재검토(주부식): ';
+    add(r.doc,head+r.item,'warn',r.amt,null,r.doc+' · '+r.item+(r.evid?' · '+r.evid:'')+(r.port?' · '+r.port:''));
+    checks[checks.length-1].liq=true;
+  }
+  // 주부식 인보이스: 주부식위원회 서명(싸인) 확인. 서명은 파일에서 읽을 수 없어 사람이 확인하고 "확인 완료"를 체크한다
+  for(const evid of Array.from(new Set(pick('주부식정산','보급').map(r=>r.evid).filter(Boolean)))){
+    const signed=rs.some(x=>x.evid===evid&&/서명|sign/i.test(x.note));
+    add('주부식정산','주부식위원회 서명 확인: '+evid,signed?'ok':'warn',null,null,'인보이스 '+evid+(signed?' · 비고에 서명 표기':' · 서명이 있는지 확인 후 "확인 완료" 체크'));
+  }
+  // 동남아 항로 수당
+  const seaRows=rs.filter(r=>(r.doc==='수당증빙'||r.doc==='선용금정산')&&SEA_ITEM.test(r.item));
+  if(!isSea(vessel)){
+    if(seaRows.length) add('수당증빙','동남아 항로 수당 지급 내역이 있으나 대상 선박이 아님','warn',sum(seaRows),null,seaRows.map(r=>r.item).join(', '));
+  }else{
+    const voy=lsJson(KEY.voy,{})[vessel]||{};
+    if(!voy.start){
+      add('수당증빙','동남아 항로 수당 대상 선박 — 항로 구간(시작일·종료일) 입력 필요','warn',null,null,'아래 "동남아 항로 구간"에 이 선박의 항차 시작·종료일을 입력');
+    }else{
+      const [Y,Mo]=month.split('-').map(Number),dim=new Date(Y,Mo,0).getDate(),ms=month+'-01',me=month+'-'+pad2(dim);
+      const s=voy.start>ms?voy.start:ms,e=(voy.end&&voy.end<me)?voy.end:me;
+      const days=s<=e?Math.round((Date.parse(e)-Date.parse(s))/86400000)+1:0;
+      const span=voy.start+' ~ '+(voy.end||'계속');
+      if(days<=0){
+        add('수당증빙','동남아 항로 구간 아님(이번 달) — 수당 없음이 정상',seaRows.length?'warn':'ok',seaRows.length?sum(seaRows):null,null,'항로 구간 '+span);
+      }else{
+        const exp=SEA_RATE.map(([n,rate])=>n+' $'+fmt(r2(rate*days/dim))).join(' · ');
+        if(!seaRows.length) add('수당증빙','동남아 항로 수당 지급 내역 없음 (이번 달 '+days+'일/'+dim+'일)','warn',null,null,'1인 기준: '+exp+' · 항로 구간 '+span);
+        for(const r of seaRows){
+          if(/외국|foreign|실습|cadet|trainee/i.test(r.item)){add(r.doc,'동남아 항로 수당은 한국 선원만 지급: '+r.item,'bad',r.amt,0,r.doc+' · '+r.item);continue}
+          const rate=SEA_RATE.find(x=>x[2].test(r.item));
+          if(!rate){add(r.doc,'동남아 항로 수당 직책 확인 필요: '+r.item,'warn',r.amt,null,r.doc+' · 1인 기준: '+exp);continue}
+          const one=r2(rate[1]*days/dim),n=r.qty||1;
+          cmp(r.doc,'동남아 항로 수당('+rate[0]+', '+days+'일/'+dim+'일'+(n>1?' × '+n+'명':'')+'): '+r.item,r.amt,r2(one*n),r.doc+' · 월 $'+rate[1]+' 일할 · 항로 구간 '+span);
+        }
+      }
+    }
+  }
+  // 1인 1일 단가
+  const unit=parseFloat($('unit').value);
+  if(unit>0){
+    const crew=pick('주부식정산','소비').filter(r=>/CREW/i.test(r.item)&&r.qty);
+    const pd=crew.reduce((s,r)=>s+r.qty,0);
+    if(pd){const u=r2(sum(crew)/pd); add('주부식정산','1인 1일 단가 ≤ 기준 $'+fmt(unit),u>unit+EPS?'bad':'ok',u,unit,'주부식정산 · KOREAN/FOREIGN CREW')}
+  }
+  return {checks,sm};
+}
+
+/* ---------- 화면 ---------- */
+let ALL=[],BYV={},BYVM={},RES={},MONTHS=[];
+// 올린 CSV는 파일명별로 모두 보관한다 (7·8·9월 파일을 차례로 올려도 서로 덮어쓰지 않음)
+let SRC=lsJson(KEY.csvs,null);
+if(!SRC||typeof SRC!=='object'){SRC={};const old=lsGet(KEY.csv,'');if(old)SRC[lsGet(KEY.name,'저장된 CSV')]=old}
+const saveSrc=()=>lsSet(KEY.csvs,JSON.stringify(SRC));
+// PDF(스캔본)에서 글자 인식으로 읽은 값: {파일명:{v,m,reports:[{type,page,m,prev,inn,out,close,inRows,outRows,detail}],invoices:[{ref,total,page}],liq:[{type,item,ref}]}}
+let PDFX=lsJson(KEY.pdfx,{});
+const savePdfx=()=>lsSet(KEY.pdfx,JSON.stringify(PDFX));
+// 읽은 값을 점검용 행(CSV와 같은 형태)으로 바꾼다
+function pdfRows(name,x){
+  const rows=[],v=x.v;if(!v)return rows;
+  const mk=o=>Object.assign({v,month:x.m,doc:'',cat:'',item:'',date:'',port:'',qty:null,price:null,amt:null,ref:null,evid:'',note:'(PDF 글자 인식)'},o);
+  const invs=(x.invoices||[]).filter(i=>i.total!=null).map(i=>({ref:i.ref,total:i.total,used:false}));
+  for(const r of x.reports||[]){
+    const doc=r.type,isCash=doc==='선용금정산',inCat=isCash?'수령':'보급',outCat=isCash?'지출':'소비',m=r.m||x.m;
+    if(r.prev==null||r.inn==null||r.out==null||r.close==null){rows.push(mk({month:m,doc,cat:'안내',item:'PDF에서 숫자를 읽지 못함 — 아래 "PDF에서 읽은 값"에 직접 입력',note:''}));continue}
+    rows.push(mk({month:m,doc,cat:'잔액',item:'전월잔액',amt:r.prev}));
+    (r.inRows||[]).forEach((a,i)=>{
+      let evid='';
+      if(!isCash){   // 가장 가까운 인보이스 합계(5달러 이내)와 연결
+        let best=null;
+        for(const iv of invs)if(!iv.used&&Math.abs(iv.total-a)<=5&&(!best||Math.abs(iv.total-a)<Math.abs(best.total-a)))best=iv;
+        if(best){best.used=true;evid=best.ref}
+      }
+      rows.push(mk({month:m,doc,cat:inCat,item:(isCash?'수령 ':'보급 ')+(i+1),amt:a,evid}));
+    });
+    (r.outRows||[]).forEach((a,i)=>rows.push(mk({month:m,doc,cat:outCat,item:(isCash?'지출 ':'소비 ')+(i+1),amt:a})));
+    rows.push(mk({month:m,doc,cat:'합계',item:isCash?'지출액 합계':'소비액 합계',amt:r.out}));
+    rows.push(mk({month:m,doc,cat:'잔액',item:'당월잔액',amt:r.close}));
+    if(!r.detail)rows.push(mk({month:m,doc,cat:'안내',item:'행별 금액을 읽지 못해 합계만 대조됨 — "PDF에서 읽은 값"에서 행 금액을 입력하면 행 합계도 대조',note:''}));
+  }
+  for(const iv of x.invoices||[])if(iv.total!=null)rows.push(mk({doc:'인보이스',cat:'품목',item:'TOTAL',amt:iv.total,evid:iv.ref}));
+  for(const l of x.liq||[])rows.push(mk({doc:l.type,cat:'품목',item:l.item,evid:l.ref||''}));
+  return rows;
+}
+function addSource(name,text){
+  if(!toRows(text).length) throw new Error('데이터 행이 없습니다.');
+  delete SRC[name];SRC[name]=text;saveSrc();   // 같은 이름은 새 파일로 교체, 가장 나중에 올린 파일이 맨 뒤
+  rebuild();
+}
+function clearSources(){
+  SRC={};saveSrc();PDFX={};savePdfx();
+  try{localStorage.removeItem(KEY.csv);localStorage.removeItem(KEY.name)}catch(e){}
+  rebuild();
+}
+function rebuild(){
+  const names=Object.keys(SRC),skipped=new Set(),errs=[],all=[];
+  names.forEach((n,i)=>{
+    try{for(const r of toRows(SRC[n])){r.src=i;if(ROSTER.includes(r.v))all.push(r);else skipped.add(r.v)}}
+    catch(e){errs.push(n+': '+e.message)}
+  });
+  const pdfNames=Object.keys(PDFX);
+  pdfNames.forEach((n,j)=>{for(const r of pdfRows(n,PDFX[n])){r.src=names.length+j;if(ROSTER.includes(r.v))all.push(r);else skipped.add(r.v)}});
+  // 같은 선박·같은 달이 여러 파일에 있으면 가장 나중에 올린 파일만 쓴다
+  const latest={};
+  for(const r of all){const k=r.v+'|'+r.month;if(latest[k]==null||r.src>latest[k])latest[k]=r.src}
+  const rs=all.filter(r=>r.src===latest[r.v+'|'+r.month]);
+  ALL=rs;BYVM={};
+  for(const r of rs){const b=(BYVM[r.v]=BYVM[r.v]||{});(b[r.month]=b[r.month]||[]).push(r)}
+  // 정산월 목록 = CSV 데이터의 달 + 접수한 첨부파일의 달
+  const mset=new Set(rs.map(r=>r.month));
+  for(const n of ROSTER)for(const m in (REG[n]||{}))mset.add(m);
+  MONTHS=Array.from(mset).sort().reverse();
+  const ms=$('month'),cur=lsGet(KEY.month,'');
+  ms.innerHTML=MONTHS.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
+  ms.value=MONTHS.includes(cur)?cur:(MONTHS[0]||'');
+  $('srcInfo').textContent=(names.length||pdfNames.length)?('CSV '+names.length+'개 · PDF 판독 '+pdfNames.length+'개 · 정산월 '+MONTHS.length+'개 · '+rs.length+'행'+(skipped.size?' · 목록에 없어 제외: '+Array.from(skipped).join(', '):'')+(errs.length?' · 읽지 못함: '+errs.join(' / '):'')):'불러온 데이터 없음 — CSV를 올려 주세요';
+  recompute();
+}
+function recompute(){
+  const M=$('month').value;
+  BYV={};for(const n of ROSTER)if(BYVM[n]&&BYVM[n][M])BYV[n]=BYVM[n][M];
+  RES={};for(const v in BYV)RES[v]=analyze(BYV[v],v,M,BYVM[v]);
+  // 선박 목록 = 이 달 CSV 데이터가 있는 선박 + 이 달 첨부파일이 접수된 선박
+  const vl=ROSTER.filter(n=>BYV[n]||hasReg(n,M));
+  const sel=$('vessel'),cur=lsGet(KEY.vessel,'');
+  sel.innerHTML=vl.map(v=>'<option>'+esc(v)+'</option>').join('');
+  sel.value=vl.includes(cur)?cur:(vl[0]||'');
+  render();
+}
+const hasReg=(n,m)=>!!((REG[n]||{})[m]||[]).length;
+const keyOf=(v,c)=>v+'|'+c.doc+'|'+c.label+'|'+c.evidence;
+// 확인 완료로 체크한 항목은 불일치·확인 필요에서 빠지고 일치로 집계한다.
+const cnt=(v,s)=>{const d=lsJson(KEY.done,{});return RES[v].checks.filter(c=>{const done=!!d[keyOf(v,c)];return s==='ok'?(c.status==='ok'||done):(c.status===s&&!done)}).length};
+const cntLiq=v=>{const d=lsJson(KEY.done,{});return RES[v].checks.filter(c=>c.liq&&!d[keyOf(v,c)]).length};
+/* ---------- 올린 원본 파일 보관 (이 브라우저 IndexedDB) ---------- */
+let _db=null;
+const idb=()=>_db||(_db=new Promise((ok,no)=>{try{const q=indexedDB.open('sy-files',1);q.onupgradeneeded=()=>q.result.createObjectStore('f');q.onsuccess=()=>ok(q.result);q.onerror=()=>no(q.error)}catch(e){no(e)}}));
+const fkey=f=>f.name+'|'+f.size;
+async function blobOp(mode,fn){try{const db=await idb();return await new Promise((ok,no)=>{const t=db.transaction('f',mode),r=fn(t.objectStore('f'));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})}catch(e){return null}}
+const saveBlob=file=>blobOp('readwrite',s=>s.put(file,fkey(file)));
+const getBlob=k=>blobOp('readonly',s=>s.get(k));
+const delBlob=k=>blobOp('readwrite',s=>s.delete(k));
+// 선박을 누르면 그 선박의 첨부파일 목록을 보여준다 (선택한 달이 맨 위)
+function renderFiles(v,M){
+  const box=$('fileBox'),reg=(v&&REG[v])||{},ms=Object.keys(reg).sort().reverse();
+  if(!v||!ms.length){box.style.display=v?'':'none';$('fileInfo').textContent='';$('fileList').innerHTML=v?'<div class="note">이 선박으로 접수된 첨부파일이 없습니다.</div>':'';return}
+  box.style.display='';
+  ms.sort((a,b)=>(b===M)-(a===M)||(a<b?1:-1));
+  $('fileInfo').textContent='· '+esc(v)+' · 총 '+ms.reduce((s,m)=>s+reg[m].length,0)+'개';
+  $('fileList').innerHTML=ms.map(m=>'<div class="st" style="margin-top:8px">'+esc(m)+(m===M?' <span class="tag ok">선택한 달</span>':'')+'</div>'+
+    reg[m].map(f=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-open="'+esc(fkey(f))+'">보기</button></div>').join('')).join('');
+}
+// "보기"를 누르면 새 탭 없이 그 줄 바로 아래에 파일을 펼쳐 보여준다 (다시 누르면 닫힘)
+$('fileList').addEventListener('click',async e=>{
+  const k=e.target.dataset.open;if(!k)return;
+  const row=e.target.closest('.fl'),nx=row.nextElementSibling;
+  if(nx&&nx.classList.contains('viewer')){if(nx.dataset.url)URL.revokeObjectURL(nx.dataset.url);nx.remove();e.target.textContent='보기';return}
+  e.target.disabled=true;
+  const b=await getBlob(k);
+  e.target.disabled=false;
+  if(!b){alert('이 파일의 원본이 이 브라우저에 저장돼 있지 않습니다. 파일을 다시 올려 주세요.');return}
+  const name=k.slice(0,k.lastIndexOf('|')),ext=(name.split('.').pop()||'').toLowerCase();
+  const box=document.createElement('div');box.className='viewer';box.style.cssText='margin:6px 0 10px';
+  const frame='width:100%;border:1px solid var(--line);border-radius:6px;background:#fff';
+  if(ext==='pdf'||/^(png|jpe?g)$/.test(ext)){
+    const url=URL.createObjectURL(b);box.dataset.url=url;
+    box.innerHTML=ext==='pdf'?'<iframe src="'+url+'" style="'+frame+';height:80vh"></iframe>':'<img src="'+url+'" style="max-width:100%;'+frame.replace('width:100%;','')+'">';
+  }else{
+    let t='';
+    try{t=/^xls/.test(ext)?(await xlsxText(await b.arrayBuffer())).replace(/\s+/g,' ').trim():await b.text()}catch(err){t=''}
+    box.innerHTML=t?'<pre style="'+frame+';padding:8px;max-height:60vh;overflow:auto;white-space:pre-wrap;font:12px/1.5 inherit">'+esc(t.slice(0,60000))+'</pre>':'<div class="note">이 형식은 화면에 표시할 수 없습니다.</div>';
+  }
+  row.after(box);e.target.textContent='닫기';
+});
+function renderPdfx(v,M){
+  let h='';
+  for(const n of Object.keys(PDFX)){
+    const x=PDFX[n];if(x.v!==v)continue;
+    const reps=(x.reports||[]).map((r,i)=>({r,i})).filter(o=>(o.r.m||x.m)===M);
+    const invs=x.m===M?(x.invoices||[]).map((iv,i)=>({iv,i})):[];
+    if(!reps.length&&!invs.length)continue;
+    h+='<div class="hint" style="margin:10px 0 4px"><b>'+esc(n)+'</b></div>';
+    for(const {r,i} of reps){
+      const isC=r.type==='선용금정산';
+      const num=(k,l)=>'<label>'+l+' <input type="number" step="0.01" data-f="'+esc(n)+'" data-i="'+i+'" data-k="'+k+'" value="'+(r[k]==null?'':r[k])+'" style="width:120px"></label>';
+      const lst=(k,l)=>'<label>'+l+' <input type="text" class="rn" data-f="'+esc(n)+'" data-i="'+i+'" data-k="'+k+'" data-list="1" value="'+esc((r[k]||[]).join(', '))+'"></label>';
+      h+='<div style="border:1px solid var(--line);border-radius:var(--r-md);padding:8px 10px;margin:6px 0"><div class="st">'+esc(r.type)+' <span class="note">'+r.page+'쪽'+(r.detail?'':' · 행별 금액 못 읽음')+'</span></div>'+
+        '<div class="row">'+num('prev','전월 잔액')+num('inn',isC?'수령액':'보급액')+num('out',isC?'지출액':'소비액')+num('close','당월 잔액')+'</div>'+
+        '<div class="row" style="margin-top:6px">'+lst('inRows',isC?'수령 행 금액':'보급 행 금액')+lst('outRows',isC?'지출 행 금액':'소비 행 금액')+'</div></div>';
+    }
+    if(invs.length)h+='<div class="row" style="margin-top:6px">'+invs.map(({iv,i})=>'<label>인보이스 '+esc(iv.ref)+' 합계 <input type="number" step="0.01" data-f="'+esc(n)+'" data-iv="'+i+'" value="'+(iv.total==null?'':iv.total)+'" style="width:120px"></label>').join('')+'</div>';
+  }
+  $('pdfxBox').style.display=h?'':'none';$('pdfx').innerHTML=h;
+}
+function render(){
+  const v=$('vessel').value,M=$('month').value;
+  renderPdfx(v,M);renderFiles(v,M);
+  if(!v){
+    $('seaBox').style.display='none';
+    $('ov').innerHTML='<tr><td class="note">점검할 선박이 없습니다. CSV나 첨부파일을 올리면 선박이 나타납니다.</td></tr>';
+    $('kpis').innerHTML='';$('res').innerHTML='';$('counts').textContent='';$('qInfo').textContent='';$('memo').value='';
+    renderTL();return;
+  }
+  lsSet(KEY.vessel,v);
+  // 개요 (검색어가 있으면 이름이 일치하는 선박만)
+  const qs=$('q').value.trim().toLowerCase();
+  const all=Array.from($('vessel').options).map(o=>o.value);
+  const names=all.filter(x=>!qs||x.toLowerCase().includes(qs));
+  $('qInfo').textContent=qs?names.length+'/'+all.length+'척':'';
+  const nf=x=>((REG[x]||{})[M]||[]).length;
+  $('ov').innerHTML='<tr><th>선박</th><th class="n">검사 항목</th><th class="n">불일치</th><th class="n">확인 필요</th><th class="n">주류 의심</th></tr>'+
+   (names.length?'':'<tr><td colspan="5" class="note">검색 결과가 없습니다.</td></tr>')+
+   names.map(x=>'<tr data-v="'+esc(x)+'" class="'+(x===v?'sel':'')+'"><td>'+esc(x)+(isSea(x)?' <span class="tag mute" title="동남아 항로 수당 대상">동남아</span>':'')+'</td>'+
+     (RES[x]?'<td class="n">'+RES[x].checks.length+'</td><td class="n">'+(cnt(x,'bad')?'<span class="tag bad">'+cnt(x,'bad')+'</span>':'0')+'</td><td class="n">'+(cnt(x,'warn')?'<span class="tag warn">'+cnt(x,'warn')+'</span>':'0')+'</td><td class="n">'+(cntLiq(x)?'<span class="tag bad">'+cntLiq(x)+'</span>':'0')+'</td>'
+       :'<td colspan="4" class="note">첨부 '+nf(x)+'개 접수 · 숫자 점검 데이터(CSV) 없음</td>')+'</tr>').join('');
+  // 동남아 항로 구간 입력 (대상 선박만)
+  const sb=$('seaBox');sb.style.display=isSea(v)?'':'none';
+  if(isSea(v)){const vy=lsJson(KEY.voy,{})[v]||{};$('voyS').value=vy.start||'';$('voyE').value=vy.end||'';$('seaName').textContent=v}
+  // 첨부파일만 접수되고 점검 데이터(CSV)가 없는 선박: 접수 파일을 보여주고 안내한다
+  if(!RES[v]){
+    const fl=(REG[v]||{})[M]||[];
+    $('kpis').innerHTML='<div class="kpi" style="grid-column:1/-1"><h3>'+esc(v)+' · '+esc(M)+' 접수 파일 '+fl.length+'개</h3>'+
+      fl.map(f=>'<div><span>['+esc(f.kind)+'] '+esc(f.name)+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><span>'+kb(f.size)+'</span></div>').join('')+'</div>';
+    $('counts').textContent='';
+    $('res').innerHTML='<tr><td class="note">이 달 점검 데이터가 없습니다. 엑셀·PDF·이미지는 내용에서 선박·월·주류 의심 단어만 읽고, 잔액·합계 숫자는 아직 읽지 못합니다. 같은 선박·달의 CSV(정산 데이터)를 올리면 여기서 바로 점검합니다.</td></tr>';
+    const memo0=lsJson(KEY.memo,{});$('memo').value=memo0[v]||'';
+    renderTL();return;
+  }
+  // 요약 카드
+  const sm=RES[v].sm;
+  $('kpis').innerHTML=['선용금정산','주부식정산','접대품정산'].filter(d=>sm[d]).map(d=>{const s=sm[d];
+    return '<div class="kpi"><h3>'+d.replace('정산','')+' (USD)</h3><div><span>전월 잔액</span><span>'+fmt(s.prev)+'</span></div><div><span>'+s.inCat+'</span><span>'+fmt(s.inflow)+'</span></div><div><span>'+s.outCat+'</span><span>'+fmt(s.outflow)+'</span></div><div class="end"><span>당월 잔액(기재)</span><span>'+fmt(s.close)+'</span></div></div>'}).join('');
+  // 결과표
+  const done=lsJson(KEY.done,{});const only=$('onlyBad').checked;
+  let list=RES[v].checks;
+  $('counts').textContent='· 일치 '+cnt(v,'ok')+' / 불일치 '+cnt(v,'bad')+' / 확인 필요 '+cnt(v,'warn');
+  const isDone=c=>!!done[keyOf(v,c)];
+  if(only)list=list.filter(c=>c.status!=='ok'&&!isDone(c));
+  if($('onlyLiq').checked)list=list.filter(c=>c.liq);
+  const order={bad:0,warn:1,ok:2};
+  const rank=c=>isDone(c)?2:order[c.status];
+  list=list.map((c,i)=>({c,i})).sort((a,b)=>rank(a.c)-rank(b.c)||a.i-b.i).map(x=>x.c);
+  const tag={ok:'<span class="tag ok">일치</span>',bad:'<span class="tag bad">불일치</span>',warn:'<span class="tag warn">확인 필요</span>',done:'<span class="tag ok">확인 완료</span>'};
+  $('res').innerHTML='<tr class="hd"><th>상태</th><th>점검 항목</th><th class="n">기재/읽은 값</th><th class="n">재계산/기준</th><th class="n">차이</th><th class="hide">근거</th><th>확인 완료</th></tr>'+
+    (list.length?list.map(c=>{const k=keyOf(v,c);
+      return '<tr class="'+(done[k]?'chk':'')+'"><td data-label="상태">'+(c.status!=='ok'&&done[k]?tag.done:tag[c.status])+'</td><td>'+esc(c.label)+'</td><td class="n" data-label="기재/읽은 값">'+fmt(c.read)+'</td><td class="n" data-label="재계산/기준">'+fmt(c.calc)+'</td><td class="n" data-label="차이">'+(c.diff==null?'':(c.diff>0?'+':'')+fmt(c.diff))+'</td><td class="note" data-label="근거">'+esc(c.evidence)+'</td><td data-label="확인 완료"><input type="checkbox" data-k="'+esc(k)+'" '+(done[k]?'checked':'')+(c.status==='ok'?' disabled':'')+'></td></tr>'}).join(''):'<tr><td colspan="7" class="note">표시할 항목이 없습니다.</td></tr>');
+  const memo=lsJson(KEY.memo,{});$('memo').value=memo[v]||'';
+  renderTL();
+}
+
+/* ---------- 첨부파일 접수 · 월별 타임라인 ---------- */
+let REG=lsJson(KEY.reg,{});   // {선박:{'YYYY-MM':[{name,size,kind,at}]}}  파일 내용은 저장하지 않는다.
+let PEND=lsJson(KEY.pend,[]); // 선박·월을 못 정한 파일 [{id,name,size,kind,v,m}]
+let TLSEL=null;
+const saveReg=()=>lsSet(KEY.reg,JSON.stringify(REG));
+const savePend=()=>lsSet(KEY.pend,JSON.stringify(PEND));
+const kindOf=n=>{const e=(n.split('.').pop()||'').toLowerCase();return e==='csv'?'CSV':e==='pdf'?'PDF':/^xls/.test(e)?'엑셀':/^(png|jpe?g)$/.test(e)?'이미지':/^(eml|msg)$/.test(e)?'메일':e.toUpperCase()};
+const kb=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+const allVessels=()=>ROSTER.slice();
+const pad2=n=>String(n).padStart(2,'0');
+const nowYM=()=>{const d=new Date();return d.getFullYear()+'-'+pad2(d.getMonth()+1)};
+function guessMonth(name,year){
+  let m=name.match(/(20\d{2})\D?(0[1-9]|1[0-2])(?!\d)/);if(m)return m[1]+'-'+m[2];
+  m=name.match(/(?:^|\D)(0?[1-9]|1[0-2])\s*월/);if(m)return year+'-'+pad2(+m[1]);
+  return '';
+}
+function guessVessel(name){
+  const norm=s=>s.toLowerCase().replace(/[\s_\-]+/g,' ');
+  const n=norm(name);
+  // 이름이 겹치는 선박(PACIFIC BUSAN / PACIFIC BUSAN 2 등)은 긴 이름을 먼저 맞춘다
+  return allVessels().sort((a,b)=>b.length-a.length).find(v=>n.includes(norm(v)))||'';
+}
+/* ---------- 첨부파일 내용으로 선박·월 알아내기 ---------- */
+const compact=s=>s.toUpperCase().replace(/[^A-Z0-9가-힣]+/g,'');
+function findVessel(text,fuzzy){
+  const t=compact(text);let best='',bc=0;
+  for(const v of ROSTER){
+    const n=compact(v);if(!n)continue;
+    let c=0,i=-1;while((i=t.indexOf(n,i+1))>=0)c++;
+    if(c>bc||(c&&c===bc&&v.length>best.length)){best=v;bc=c}
+  }
+  if(best||!fuzzy)return best;
+  // 글자 인식(OCR) 결과는 한두 글자 틀릴 수 있어, 글자 수가 같은 구간에서 가장 비슷한 이름을 고른다
+  let bm=1e9;
+  for(const v of ROSTER){
+    const n=compact(v);if(n.length<6)continue;
+    const tol=Math.max(1,Math.floor(n.length/8));
+    for(let i=0;i+n.length<=t.length;i++){
+      let mm=0;for(let k=0;k<n.length&&mm<=tol;k++)if(t[i+k]!==n[k])mm++;
+      if(mm<=tol&&mm<bm){bm=mm;best=v}
+    }
+  }
+  return best;
+}
+function findMonth(text){
+  const cnt={};
+  for(const m of text.matchAll(/(20\d{2})\s*[-./년]\s*(0?[1-9]|1[0-2])(?!\d)/g)){const k=m[1]+'-'+pad2(+m[2]);cnt[k]=(cnt[k]||0)+1}
+  let best='',bc=0;for(const k in cnt)if(cnt[k]>bc){best=k;bc=cnt[k]}
+  return best;
+}
+async function inflate(u8,fmt){
+  const ds=new DecompressionStream(fmt),w=ds.writable.getWriter();
+  w.write(u8);w.close();
+  return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+async function xlsxText(buf){
+  const u=new Uint8Array(buf),dv=new DataView(buf),dec=new TextDecoder('utf-8');
+  let e=-1;for(let i=u.length-22;i>=Math.max(0,u.length-65557);i--)if(dv.getUint32(i,true)===0x06054b50){e=i;break}
+  if(e<0)return '';
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true),out='';
+  for(let k=0;k<n;k++){
+    if(dv.getUint32(p,true)!==0x02014b50)break;
+    const meth=dv.getUint16(p+10,true),cs=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);
+    const name=dec.decode(u.subarray(p+46,p+46+nl));p+=46+nl+el+cl;
+    if(!/^xl\/(sharedStrings|workbook|worksheets\/[^/]+)\.xml$/.test(name))continue;
+    const ds=off+30+dv.getUint16(off+26,true)+dv.getUint16(off+28,true),raw=u.subarray(ds,ds+cs);
+    out+=' '+dec.decode(meth===0?raw:await inflate(raw,'deflate-raw')).replace(/<[^>]+>/g,' ');
+  }
+  return out;
+}
+// 텍스트가 들어 있는 PDF만 읽을 수 있다 (스캔 이미지 PDF는 글자가 없어 읽지 못함)
+async function pdfText(buf){
+  const u=new Uint8Array(buf),s=new TextDecoder('latin1').decode(u),dec=new TextDecoder('latin1');
+  let out='',i=0,n=0;
+  const hex=h=>{h=h.replace(/\s+/g,'');let r='';const step=(h.length%4===0&&/^(00[0-9A-Fa-f]{2})+$/.test(h))?4:2;for(let k=0;k+step<=h.length;k+=step){const c=parseInt(h.slice(k+step-2,k+step),16);if(c>=32&&c<127)r+=String.fromCharCode(c)}return r};
+  while((i=s.indexOf('stream',i))>=0&&n<400){
+    if(s.slice(i-3,i)==='end'){i+=6;continue}
+    let ds=i+6;if(s[ds]==='\r')ds++;if(s[ds]==='\n')ds++;
+    const end=s.indexOf('endstream',ds);if(end<0)break;
+    const dict=s.slice(Math.max(s.lastIndexOf('obj',i),i-600),i);i=end+9;
+    if(/\/Image|\/XObject/.test(dict)||!/FlateDecode/.test(dict)||end-ds>3e6)continue;
+    n++;
+    try{
+      const t=dec.decode(await inflate(u.subarray(ds,end),'deflate'));
+      for(const m of t.matchAll(/\(((?:\\.|[^\\()])*)\)|<([0-9A-Fa-f\s]+)>/g))out+=m[1]!==undefined?m[1].replace(/\\(.)/g,'$1'):hex(m[2]);
+      out+=' ';
+    }catch(err){}
+  }
+  return out;
+}
+/* ---------- 글자 인식(OCR): 스캔 PDF·이미지 ---------- */
+// 라이브러리는 처음 필요할 때만 인터넷에서 내려받는다 (Tesseract.js, PDF.js)
+const LIBS={};
+function loadScript(src){
+  return LIBS[src]||(LIBS[src]=new Promise((ok,no)=>{
+    const s=document.createElement('script');s.src=src;s.onload=ok;
+    s.onerror=()=>{delete LIBS[src];no(new Error('글자 인식 도구를 내려받지 못했습니다. 인터넷 연결을 확인하세요.'))};
+    document.head.appendChild(s);
+  }));
+}
+const say=t=>{$('dropMsg').textContent=t};
+let OCRW=null;
+async function ocrWorker(){
+  await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+  return OCRW||(OCRW=Tesseract.createWorker('eng+kor'));   // 한글 품목명(맥주·소주 등)과 숫자를 함께 읽는다
+}
+async function ocrImageFile(f,name){
+  say(name+': 글자 인식 중…');
+  const w=await ocrWorker();
+  return (await w.recognize(f)).data.text;
+}
+// 스캔 PDF는 앞쪽 3쪽까지 그림으로 바꿔 읽고, 선박을 찾으면 거기서 멈춘다
+async function ocrPdf(buf,name){
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const w=await ocrWorker();const pages=[];
+  const N=Math.min(doc.numPages,OCR_PAGES),t0=Date.now();
+  for(let p=1;p<=N;p++){
+    say(name+': 글자 인식 중… ('+p+'/'+N+'쪽, '+Math.round((Date.now()-t0)/1000)+'초 경과)');
+    const page=await doc.getPage(p),vp=page.getViewport({scale:2}),cv=document.createElement('canvas');
+    cv.width=vp.width;cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    pages.push((await w.recognize(cv)).data.text);
+  }
+  return pages;   // 쪽별 글자
+}
+/* 정산서 3종(선용금·주부식·접대품) 첫 장의 숫자와 인보이스 합계를 글자 인식 결과에서 찾는다 */
+const MONEY=/(?<![\d.,])([-−–—~]?)(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})(?!\d|\.\d)/g;
+const moneyTokens=t=>Array.from(t.matchAll(MONEY)).map(m=>{const v=parseFloat(m[2].replace(/,/g,'')+'.'+m[3]);return m[1]?-v:v});
+function invTotal(t){
+  let r=null;
+  for(const m of t.matchAll(/T\s?O\s?T\s?A\s?L[^\d\n]{0,25}(\d[\d.,]*[.,]\d{2})(?!\d)/gi))r=m[1];
+  if(!r)return null;
+  const d=r.search(/[.,]\d{2}$/);
+  return parseFloat(r.slice(0,d).replace(/[.,]/g,'')+'.'+r.slice(d+1));
+}
+function parseOcrPages(pages){
+  const reports=[],inv={},liq=[];let v='',m0='',lastRef='';
+  pages.forEach((txt,i)=>{
+    const c=compact(txt),page=i+1;
+    let type='';
+    if(c.includes('ENTERTAINMENTFEESETTLEMENT')||c.includes('접대품정산보고서'))type='접대품정산';
+    else if(c.includes('PROVISIONSSETTLEMENT')||c.includes('PROVISIONSETTLEMENT')||c.includes('주부식정산보고서'))type='주부식정산';
+    else if(c.includes('CASHSETTLEMENT')||c.includes('선용금정산보고서'))type='선용금정산';
+    if(!v)v=findVessel(txt,true);
+    const mon=findMonth(txt);
+    if(type){
+      if(!m0&&mon)m0=mon;
+      const tk=moneyTokens(txt),r={type,page,m:mon,prev:null,inn:null,out:null,close:null,inRows:[],outRows:[],detail:false};
+      if(tk.length>=4){
+        [r.prev,r.inn,r.out,r.close]=tk;
+        const rest=tk.slice(4);
+        // 수령(보급)행: 앞에서부터 더해서 수령액과 같아지는 곳까지
+        let k=-1,s=0;
+        if(Math.abs(r.inn)<EPS)k=0;
+        else for(let j=0;j<rest.length;j++){s=r2(s+rest[j]);if(Math.abs(s-r.inn)<EPS){k=j+1;break}}
+        if(k>=0){
+          r.inRows=rest.slice(0,k);
+          let r3=rest.slice(k);
+          if(r.inn!==0&&r3.length&&Math.abs(r3[0]-r.inn)<EPS)r3=r3.slice(1);                       // 수령(보급)액 합계 칸
+          if(r3.length&&Math.abs(r3[r3.length-1]-r.out)<EPS)r3=r3.slice(0,-1);                      // 지출(소비)액 합계 칸
+          if(type==='선용금정산'){r.outRows=r3;r.detail=true}
+          else if(r3.length%2===0){r.outRows=r3.filter((_,j)=>j%2===1);r.detail=true}               // 소비행은 (단가, 금액) 쌍
+        }
+        if(!r.detail){r.inRows=r.inn?[r.inn]:[];r.outRows=[r.out]}
+      }
+      reports.push(r);
+    }else if(/\b[A-Z]{2}\s?-\s?\d{3}\s?-\s?\d{4}\b/.test(txt)||c.includes('INVOICE')||c.includes('TOTALINWORDS')){
+      const mm=txt.match(/\b[A-Z]{2}\s?-\s?\d{3}\s?-\s?\d{4}\b/);
+      let ref=mm?mm[0].replace(/\s/g,''):(!c.includes('INVOICE')&&lastRef?lastRef:'INV-p'+page);
+      lastRef=ref;
+      const o=inv[ref]=inv[ref]||{ref,total:null,page};
+      const t=invTotal(txt);if(t!=null)o.total=t;
+      for(const line of txt.split('\n'))if(LIQUOR.test(line)&&!/SETTLEMENT/i.test(line))liq.push({type:'인보이스',item:line.trim().slice(0,80),ref});
+    }
+    if(type==='접대품정산'||type==='주부식정산'){
+      for(const line of txt.split('\n'))if(LIQUOR.test(line)&&!/SETTLEMENT|정산보고서/i.test(line))liq.push({type,item:line.trim().slice(0,80),ref:''});
+    }
+  });
+  if(!reports.length&&!Object.keys(inv).length)return null;
+  return {v,m:m0||(reports[0]&&reports[0].m)||'',reports,invoices:Object.values(inv),liq:liq.slice(0,40)};
+}
+async function detectFile(f,year){
+  let text='',ocrErr='',x=null;
+  const ext=(f.name.split('.').pop()||'').toLowerCase();
+  try{
+    if(ext==='xlsx'||ext==='xlsm')text=await xlsxText(await f.arrayBuffer());
+    else if(ext==='pdf'&&f.size<80*1048576)text=await pdfText(await f.arrayBuffer());
+    else if(/^(txt|eml|msg|md|csv)$/.test(ext))text=await f.text();
+  }catch(err){text=''}
+  let v=findVessel(text),src='파일 내용';
+  if(!v&&(ext==='pdf'||/^(png|jpe?g)$/.test(ext))){
+    try{
+      if(ext==='pdf'){const pages=await ocrPdf(await f.arrayBuffer(),f.name);text+='\n'+pages.join('\n');x=parseOcrPages(pages)}
+      else text+='\n'+await ocrImageFile(f,f.name);
+      v=findVessel(text,true);src='글자 인식';
+    }catch(err){ocrErr=err.message||String(err)}
+  }
+  if(!v){v=guessVessel(f.name);src='파일명'}
+  if(ocrErr)say(f.name+': '+ocrErr);
+  return {v,m:findMonth(text)||guessMonth(f.name,year),src:v?src:'',liq:findLiquor(text),x};
+}
+function addReg(v,m,f){
+  REG[v]=REG[v]||{};const a=(REG[v][m]=REG[v][m]||[]);
+  if(!a.some(x=>x.name===f.name&&x.size===f.size))a.push({name:f.name,size:f.size,kind:f.kind,at:new Date().toISOString().slice(0,10),liq:f.liq||[]});
+  saveReg();
+}
+async function handleFiles(list){
+  const files=Array.from(list||[]);if(!files.length)return;
+  const year=+($('year').value||new Date().getFullYear());
+  const msg=[];
+  for(const f of files){
+    const kind=kindOf(f.name);
+    await saveBlob(f);   // 나중에 다시 열어 볼 수 있게 원본을 보관한다
+    if(kind==='CSV'){
+      try{
+        const text=await f.text();
+        const rows=toRows(text);
+        // 선박 목록에 없는 새 선박이 있으면 추가할지 묻는다
+        const added=[],skipped=[];
+        for(const v of Array.from(new Set(rows.map(r=>r.v))).filter(v=>!ROSTER.includes(v))){
+          if(confirm('"'+v+'"은(는) 선박 목록에 없는 새 선박입니다.\n선박 목록에 추가할까요?\n\n[확인] 추가   [취소] 이 선박은 제외')){addVessel(v);added.push(v)}
+          else skipped.push(v);
+        }
+        if(added.length){renderRoster()}
+        if(!rows.some(r=>ROSTER.includes(r.v))){msg.push(f.name+': 선박 목록에 있는 선박이 없어 접수하지 않았습니다');continue}
+        addSource(f.name,text);
+        // 올린 파일의 가장 늦은 달을 보여준다 (이미 더 늦은 달을 보고 있으면 그대로)
+        const lastM=rows.filter(r=>ROSTER.includes(r.v)).map(r=>r.month).sort().pop();
+        if(lastM&&lastM>$('month').value){lsSet(KEY.month,lastM);$('month').value=lastM;recompute()}
+        const seen=new Set();
+        for(const r of rows){if(!ROSTER.includes(r.v))continue;const k=r.v+'|'+r.month;if(!seen.has(k)){seen.add(k);addReg(r.v,r.month,{name:f.name,size:f.size,kind})}}
+        msg.push(f.name+': 선박 '+new Set(rows.filter(r=>ROSTER.includes(r.v)).map(r=>r.v)).size+'척 접수'+(added.length?' (새로 추가: '+added.join(', ')+')':'')+(skipped.length?' (제외: '+skipped.join(', ')+')':''));
+      }catch(err){msg.push(f.name+': '+err.message)}
+    }else{
+      // 선박을 직접 고르게 하지 않고, 파일 내용(없으면 파일명)으로 알아내 "분류 대기"에 미리 선택해 둔다
+      const d=await detectFile(f,year);
+      // 스캔 PDF에서 정산서 숫자를 읽었으면 그 값으로 점검한다 (선박·월도 정산서 내용 기준)
+      let rd='';
+      if(d.x){
+        if(d.x.v)d.v=d.x.v;
+        if(d.x.m)d.m=d.x.m;
+        if(d.x.v&&d.x.m){PDFX[f.name]=d.x;savePdfx();d.src='글자 인식'}
+        rd=' · 정산서 '+d.x.reports.length+'종·인보이스 '+d.x.invoices.length+'건 읽음';
+      }
+      const lq=d.liq.length?' ⚠ 주류 의심 단어: '+d.liq.join(', '):'';
+      if(d.v&&d.m){   // 선박·월을 모두 찾았으면 바로 접수한다
+        addReg(d.v,d.m,{name:f.name,size:f.size,kind,liq:d.liq});
+        lsSet(KEY.vessel,d.v);lsSet(KEY.month,d.m);
+        msg.push(f.name+': '+d.v+' '+d.m+' 접수 ('+d.src+'에서 확인)'+rd+lq);
+      }else{
+        PEND.push({id:Date.now()+'-'+Math.random().toString(36).slice(2,6),name:f.name,size:f.size,kind,v:d.v,m:d.m,src:d.src,liq:d.liq});savePend();
+        msg.push(f.name+': '+(d.v?d.v+' (월을 찾지 못함 — 월 선택 후 등록)':'선박을 찾지 못함 — 직접 선택')+lq);
+      }
+    }
+  }
+  $('dropMsg').textContent=msg.join(' / ');
+  rebuild();
+}
+function renderTL(){
+  const vs=allVessels(),cur=nowYM();
+  // 연도 선택
+  const ys=new Set([new Date().getFullYear()]);
+  for(const v in REG)for(const m in REG[v])ys.add(+m.slice(0,4));
+  for(const r of ALL){const y=+(r.month||'').slice(0,4);if(y)ys.add(y)}
+  const ylist=Array.from(ys).sort((a,b)=>b-a),ysel=$('year');
+  const want=ysel.value||lsGet(KEY.year,String(ylist[0]));
+  ysel.innerHTML=ylist.map(y=>'<option value="'+y+'">'+y+'년</option>').join('');
+  ysel.value=ylist.includes(+want)?String(want):String(ylist[0]);
+  const Y=+ysel.value;
+  // 타임라인 표
+  let h='<tr><th>선박</th>';
+  for(let m=1;m<=12;m++)h+='<th class="mo">'+m+'월</th>';
+  h+='<th class="sm">등록</th></tr>';
+  for(const v of vs){
+    let ok=0,due=0;
+    h+='<tr><td class="vn" data-v="'+esc(v)+'">'+esc(v)+'</td>';
+    for(let m=1;m<=12;m++){
+      const key=Y+'-'+pad2(m),files=(REG[v]||{})[key]||[];
+      let cell;
+      if(files.length){cell='<span class="tag ok">등록'+(files.length>1?' '+files.length:'')+'</span>'+(files.some(x=>x.liq&&x.liq.length)?' <span class="tag bad" title="첨부파일에 주류 의심 단어">주류?</span>':'')}
+      else if(key<=cur){cell='<span class="tag warn">미등록</span>'}
+      else cell='<span class="tag mute">—</span>';
+      if(key<=cur){due++;if(files.length)ok++}
+      const on=TLSEL&&TLSEL.v===v&&TLSEL.m===key?' on':'';
+      h+='<td class="c'+on+'" data-v="'+esc(v)+'" data-m="'+key+'" title="'+esc(files.map(f=>f.name).join('\n'))+'">'+cell+'</td>';
+    }
+    h+='<td class="sm">'+ok+'/'+due+'</td></tr>';
+  }
+  $('tl').innerHTML=h||'';
+  if(!vs.length)$('tl').innerHTML='<tr><td class="note">선박이 없습니다. 데이터를 불러오거나 파일을 접수하세요.</td></tr>';
+  // 선택한 칸의 파일 목록
+  const d=$('tlDetail');
+  if(TLSEL){
+    const files=(REG[TLSEL.v]||{})[TLSEL.m]||[];
+    d.innerHTML='<div class="st" style="margin-top:10px">'+esc(TLSEL.v)+' · '+TLSEL.m+' 접수 파일</div>'+
+      (files.length?files.map((f,i)=>'<div class="fl"><span>['+esc(f.kind)+'] '+esc(f.name)+' <span class="note">'+kb(f.size)+' · '+esc(f.at)+'</span>'+(f.liq&&f.liq.length?' <span class="tag bad">주류 의심: '+esc(f.liq.join(', '))+'</span>':'')+'</span><button data-del="'+i+'">삭제</button></div>').join(''):'<div class="note">접수된 파일이 없습니다. 파일을 끌어다 놓고 선박·월을 지정하세요.</div>');
+  }else d.innerHTML='';
+  // 분류 대기
+  $('pend').innerHTML=(PEND.length?'<div class="st row" style="margin-top:10px"><span class="grow">분류 대기 ('+PEND.length+') <span class="note" style="font-weight:400">선박·월을 자동으로 골라 두었습니다. 맞는지 확인하고 등록하세요.</span></span>'+(PEND.length>1?'<button data-act="all">선박·월이 채워진 파일 모두 등록</button>':'')+'</div>':'')+PEND.map(p=>
+    '<div class="pr" data-id="'+esc(p.id)+'"><span class="nm">['+esc(p.kind)+'] '+esc(p.name)+' <span class="note">'+kb(p.size)+'</span></span>'+
+    (p.liq&&p.liq.length?'<span class="tag bad">주류 의심: '+esc(p.liq.join(', '))+'</span>':'')+
+    (p.v&&vs.includes(p.v)?'<span class="tag '+(p.src==='파일 내용'||p.src==='글자 인식'?'ok':'mute')+'">'+esc(p.src||'자동')+'에서 분류</span>':'<span class="tag warn">자동 분류 실패 · 직접 선택</span>')+
+    '<select class="pv" style="width:200px"><option value="">선박 선택</option>'+vs.map(v=>'<option value="'+esc(v)+'"'+(v===p.v?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select><input type="month" class="pm" value="'+esc(p.m||'')+'" style="width:150px">'+
+    '<button data-act="reg" class="primary">등록</button><button data-act="rm">삭제</button></div>').join('');
+}
+$('year').addEventListener('change',()=>{lsSet(KEY.year,$('year').value);TLSEL=null;renderTL()});
+$('tl').addEventListener('click',e=>{
+  const c=e.target.closest('td[data-v]');if(!c)return;
+  // 선박을 누르면 그 선박을, 월 칸을 누르면 그 달까지 바꿔서 점검 화면으로 보낸다
+  if(c.dataset.m){TLSEL={v:c.dataset.v,m:c.dataset.m};if(MONTHS.includes(c.dataset.m)){lsSet(KEY.month,c.dataset.m);$('month').value=c.dataset.m}}
+  lsSet(KEY.vessel,c.dataset.v);
+  recompute();
+});
+$('tlDetail').addEventListener('click',e=>{
+  const i=e.target.dataset.del;if(i==null||!TLSEL)return;
+  const a=(REG[TLSEL.v]||{})[TLSEL.m];if(!a)return;
+  const gone=a.splice(+i,1)[0];
+  if(gone&&PDFX[gone.name]){delete PDFX[gone.name];savePdfx()}   // 그 파일에서 읽은 값도 함께 지운다
+  if(gone)delBlob(fkey(gone));
+  if(!a.length)delete REG[TLSEL.v][TLSEL.m];
+  if(!Object.keys(REG[TLSEL.v]).length)delete REG[TLSEL.v];
+  saveReg();rebuild();
+});
+$('pend').addEventListener('click',e=>{
+  const act=e.target.dataset.act;if(!act)return;
+  if(act==='all'){
+    let c=0;
+    for(const r of Array.from($('pend').querySelectorAll('.pr'))){
+      const v=r.querySelector('.pv').value,m=r.querySelector('.pm').value,i=PEND.findIndex(p=>p.id===r.dataset.id);
+      if(!v||!m||i<0)continue;
+      addReg(v,m,PEND[i]);PEND.splice(i,1);c++;
+    }
+    savePend();$('dropMsg').textContent=c+'개 파일 등록';rebuild();return;
+  }
+  const row=e.target.closest('.pr'),i=PEND.findIndex(p=>p.id===row.dataset.id);if(i<0)return;
+  if(act==='rm'){PEND.splice(i,1);savePend();renderTL();return}
+  let v=row.querySelector('.pv').value.trim();const m=row.querySelector('.pm').value;
+  if(!v||!m){alert('선박 이름과 월을 모두 입력하세요.');return}
+  v=canon(v);
+  if(!ROSTER.includes(v)){
+    if(!confirm('"'+v+'"은(는) 선박 목록에 없는 새 선박입니다.\n선박 목록에 추가할까요?'))return;
+    addVessel(v);renderRoster();
+  }
+  const p=PEND[i];addReg(v,m,p);PEND.splice(i,1);savePend();
+  $('dropMsg').textContent=p.name+': '+v+' '+m+' 접수';
+  lsSet(KEY.vessel,v);lsSet(KEY.month,m);rebuild();
+});
+/* ---------- 선박 목록 관리 (추가 · 이름 변경 · 삭제) ---------- */
+function addVessel(n){
+  delete ALIAS[n];saveAlias();   // 예전에 바꾼 이름과 겹치면 별칭 연결을 끊는다
+  ROSTER.push(n);saveRoster();
+}
+// 선박별로 저장된 접수 기록·메모·확인 체크·분류 대기를 새 이름으로 옮긴다
+function renameKey(o,n){
+  if(o===n)return;
+  if(REG[o]){REG[n]=Object.assign(REG[n]||{},REG[o]);delete REG[o];saveReg()}
+  const m=lsJson(KEY.memo,{});if(o in m){m[n]=m[o];delete m[o];lsSet(KEY.memo,JSON.stringify(m))}
+  const d=lsJson(KEY.done,{});let ch=false;
+  for(const k of Object.keys(d))if(k.startsWith(o+'|')){d[n+k.slice(o.length)]=d[k];delete d[k];ch=true}
+  if(ch)lsSet(KEY.done,JSON.stringify(d));
+  let pc=false;for(const p of PEND)if(p.v===o){p.v=n;pc=true}
+  if(pc)savePend();
+  if(lsGet(KEY.vessel,'')===o)lsSet(KEY.vessel,n);
+}
+function dropKey(o){
+  if(REG[o]){delete REG[o];saveReg()}
+  const m=lsJson(KEY.memo,{});if(o in m){delete m[o];lsSet(KEY.memo,JSON.stringify(m))}
+  const d=lsJson(KEY.done,{});let ch=false;
+  for(const k of Object.keys(d))if(k.startsWith(o+'|')){delete d[k];ch=true}
+  if(ch)lsSet(KEY.done,JSON.stringify(d));
+  if(lsGet(KEY.vessel,'')===o)lsSet(KEY.vessel,'');
+}
+function rosterChanged(){
+  rebuild();
+  renderRoster();
+}
+function renderRoster(){
+  $('rosterInfo').textContent='· 등록 '+ROSTER.length+'척';
+  $('roster').innerHTML=ROSTER.length?ROSTER.map((n,i)=>
+    '<div class="vr" data-i="'+i+'"><span class="no">'+(i+1)+'</span><input type="text" class="rn" value="'+esc(n)+'" autocomplete="off">'+
+    (BYV[n]?'<span class="tag ok">데이터 있음</span>':'<span class="tag mute">데이터 없음</span>')+
+    '<button data-act="ren">이름 변경</button><button data-act="del">삭제</button></div>').join(''):'<div class="note">등록된 선박이 없습니다. 아래에서 추가하세요.</div>';
+}
+function doAdd(){
+  const inp=$('vnew'),n=inp.value.trim();
+  if(!n){alert('추가할 선박 이름을 입력하세요.');return}
+  if(ROSTER.some(x=>sameName(x,n))){alert('이미 목록에 있는 선박입니다.');return}
+  addVessel(n);inp.value='';rosterChanged();
+}
+function doRename(i,val){
+  const old=ROSTER[i],n=val.trim();
+  if(!n){alert('선박 이름을 입력하세요.');renderRoster();return}
+  if(n===old)return;
+  if(ROSTER.some((x,j)=>j!==i&&sameName(x,n))){alert('이미 목록에 있는 선박 이름입니다.');renderRoster();return}
+  ROSTER[i]=n;saveRoster();
+  for(const k of Object.keys(ALIAS))if(ALIAS[k]===old)ALIAS[k]=n;
+  ALIAS[old]=n;saveAlias();   // 예전 이름으로 된 CSV 데이터도 새 이름으로 이어 쓴다
+  renameKey(old,n);
+  rosterChanged();
+}
+function doRemove(i){
+  const n=ROSTER[i];
+  if(!confirm('"'+n+'" 선박을 목록에서 삭제할까요?\n이 선박의 접수 기록·메모·확인 체크도 함께 지워집니다.'))return;
+  ROSTER.splice(i,1);saveRoster();dropKey(n);
+  rosterChanged();
+}
+$('roster').addEventListener('click',e=>{
+  const act=e.target.dataset.act;if(!act)return;
+  const row=e.target.closest('.vr'),i=+row.dataset.i;
+  if(act==='ren')doRename(i,row.querySelector('.rn').value);else doRemove(i);
+});
+$('roster').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||!e.target.classList.contains('rn'))return;
+  e.preventDefault();doRename(+e.target.closest('.vr').dataset.i,e.target.value);
+});
+$('vadd').addEventListener('click',doAdd);
+$('vnew').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doAdd()}});
+
+// 화면 어디에나 드래그해서 놓기
+let dragDepth=0;
+const hasFiles=e=>e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files');
+document.addEventListener('dragenter',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth++;document.body.classList.add('dragging')});
+document.addEventListener('dragover',e=>{if(!hasFiles(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy'});
+document.addEventListener('dragleave',e=>{if(!hasFiles(e))return;dragDepth=Math.max(0,dragDepth-1);if(!dragDepth)document.body.classList.remove('dragging')});
+document.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();dragDepth=0;document.body.classList.remove('dragging');handleFiles(e.dataTransfer.files)});
+
+/* ---------- 이벤트 ---------- */
+$('ov').addEventListener('click',e=>{const tr=e.target.closest('tr[data-v]');if(tr){$('vessel').value=tr.dataset.v;render()}});
+$('vessel').addEventListener('change',render);
+// PDF에서 읽은 값을 고치면 저장하고 다시 점검한다
+$('pdfx').addEventListener('change',e=>{
+  const t=e.target,x=PDFX[t.dataset.f];if(!x)return;
+  if(t.dataset.iv!=null){const iv=x.invoices[+t.dataset.iv];if(iv)iv.total=t.value===''?null:parseFloat(t.value)}
+  else{
+    const r=x.reports[+t.dataset.i];if(!r)return;
+    if(t.dataset.list){
+      const a=t.value.split(',').map(s=>s.trim().replace(/^\$/,'')).filter(Boolean).map(s=>parseFloat(s.replace(/,/g,'')));
+      if(a.some(isNaN)){alert('행 금액은 숫자를 쉼표로 구분해 입력하세요. 예: 8297.00, 932.00');render();return}
+      r[t.dataset.k]=a;r.detail=true;
+    }else r[t.dataset.k]=t.value===''?null:parseFloat(t.value);
+  }
+  savePdfx();rebuild();
+});
+$('month').addEventListener('change',()=>{lsSet(KEY.month,$('month').value);recompute()});
+$('onlyLiq').addEventListener('change',render);
+const saveVoy=()=>{const v=$('vessel').value;if(!v)return;const a=lsJson(KEY.voy,{});a[v]={start:$('voyS').value,end:$('voyE').value};lsSet(KEY.voy,JSON.stringify(a));recompute()};
+$('voyS').addEventListener('change',saveVoy);
+$('voyE').addEventListener('change',saveVoy);
+$('voyClr').addEventListener('click',()=>{$('voyS').value='';$('voyE').value='';saveVoy()});
+$('q').addEventListener('input',()=>{
+  lsSet(KEY.q,$('q').value);
+  const qs=$('q').value.trim().toLowerCase();
+  if(qs){const hit=Object.keys(BYV).find(x=>x.toLowerCase().includes(qs));if(hit)$('vessel').value=hit}
+  render();
+});
+$('onlyBad').addEventListener('change',()=>{lsSet(KEY.only,$('onlyBad').checked?'1':'0');render()});
+$('unit').addEventListener('change',()=>{lsSet(KEY.unit,$('unit').value);recompute()});
+$('res').addEventListener('change',e=>{const k=e.target.dataset.k;if(k==null)return;const d=lsJson(KEY.done,{});if(e.target.checked)d[k]=1;else delete d[k];lsSet(KEY.done,JSON.stringify(d));render()});
+$('memo').addEventListener('input',()=>{const m=lsJson(KEY.memo,{});m[$('vessel').value]=$('memo').value;lsSet(KEY.memo,JSON.stringify(m))});
+$('file').addEventListener('change',e=>{handleFiles(e.target.files);e.target.value=''});
+$('seedBtn').addEventListener('click',()=>{
+  if(!confirm('불러온 CSV 데이터를 모두 지울까요?\n(접수 기록·메모·선박 목록은 그대로 남습니다)'))return;
+  clearSources();
+});
+
+/* ---------- 시작 ---------- */
+$('unit').value=lsGet(KEY.unit,'');
+$('q').value=lsGet(KEY.q,'');
+$('onlyBad').checked=lsGet(KEY.only,'0')==='1';
+for(const o of Object.keys(ALIAS))if(ROSTER.includes(ALIAS[o]))renameKey(o,ALIAS[o]);   // 옛 이름으로 저장된 기록 이어받기
+renderRoster();
+try{rebuild()}catch(err){alert('저장된 데이터를 읽지 못했습니다: '+err.message)}
+})();
+</script>
+</body>
+</html>
